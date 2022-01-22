@@ -29,7 +29,11 @@ static int sendConn(int fd, char *str) {
 }
 
 int sendResponse(Connection *conn, Sitefile *site) {
-	printf("test\n");
+	printf("test %d\n", site->size);
+	for (int i = 0; i < site->size; i++) {
+		printf("%s %s\n", site->content[i].path, site->content[i].arg);
+	}
+
 	sendConn(conn->fd, "HTTP/1.1 200 OK\r\n");
 	sendConn(conn->fd, "Content-Type: text/html\r\n");
 	sendConn(conn->fd, "Content-Length: 16\r\n");

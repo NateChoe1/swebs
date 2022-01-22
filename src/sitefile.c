@@ -17,8 +17,10 @@
 */
 #include <ctype.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 
+#include <util.h>
 #include <sitefile.h>
 
 typedef enum {
@@ -93,6 +95,13 @@ static ReturnCode getToken(FILE *file, char **ret) {
 					goto gotToken;
 				goto error;
 		}
+		if (len >= allocatedLen) {
+			allocatedLen *= 2;
+			char *newret = realloc(*ret, allocatedLen);
+			if (newret == NULL)
+				goto error;
+			*ret = newret;
+		}
 		(*ret)[len] = c;
 	}
 gotToken:
@@ -111,6 +120,14 @@ static ReturnCode getCommand(FILE *file, int *argcret, char ***argvret) {
 	int allocatedTokens = 5;
 	char **argv = malloc(allocatedTokens * sizeof(char *));
 	for (;;) {
+		if (argc >= allocatedTokens) {
+			allocatedTokens *= 2;
+			char **newargv = realloc(argv,
+			      allocatedTokens * sizeof(char *));
+			if (newargv == NULL)
+				goto error;
+			argv = newargv;
+		}
 		ReturnCode code = getToken(file, argv + argc);
 
 		switch (code) {
@@ -131,20 +148,21 @@ static ReturnCode getCommand(FILE *file, int *argcret, char ***argvret) {
 				return SUCCESS;
 			case SUCCESS:
 				argc++;
-				if (argc >= allocatedTokens) {
-					allocatedTokens *= 2;
-					char **newargv = realloc(*argv,
-					      allocatedTokens * sizeof(char *));
-					if (newargv == NULL)
-						goto error;
-					argv = newargv;
-				}
 				break;
 		}
 	}
 error:
 	freeTokens(argc, argv);
 	return ERROR;
+}
+
+static char *copyString(char *str) {
+	size_t len = strlen(str);
+	char *ret = malloc(len + 1);
+	if (ret == NULL)
+		return NULL;
+	memcpy(ret, str, len + 1);
+	return ret;
 }
 
 Sitefile *parseFile(char *path) {
@@ -161,18 +179,31 @@ Sitefile *parseFile(char *path) {
 		free(ret);
 		return NULL;
 	}
+	RequestType respondto = GET;
+	int argc;
+	char **argv;
 	for (;;) {
-		int argc;
-		char **argv;
 		ReturnCode status = getCommand(file, &argc, &argv);
 		switch (status) {
 			case FILE_END:
 				fclose(file);
 				return ret;
 			case ERROR: case LINE_END:
-				goto error;
+				goto nterror;
 			case SUCCESS:
 				break;
+		}
+		if (strcmp(argv[0], "set") == 0) {
+			if (argc < 3)
+				goto error;
+			if (strcmp(argv[1], "respondto") == 0) {
+				respondto = getType(argv[2]);
+				if (respondto == INVALID)
+					goto error;
+			}
+			else
+				goto error;
+			continue;
 		}
 		if (ret->size >= allocatedLength) {
 			allocatedLength *= 2;
@@ -182,17 +213,35 @@ Sitefile *parseFile(char *path) {
 				goto error;
 			ret->content = newcontent;
 		}
-		ret->content[ret->size].argc = argc;
-		ret->content[ret->size].argv = argv;
+		if (argc < 3)
+			goto error;
+
+		ret->content[ret->size].path = copyString(argv[1]);
+		if (ret->content[ret->size].path == NULL)
+			goto error;
+
+		if (strcmp(argv[0], "read") == 0) {
+			ret->content[ret->size].arg = copyString(argv[2]);
+			if (ret->content[ret->size].arg == NULL)
+				goto error;
+		}
+		else
+			goto error;
+		freeTokens(argc, argv);
+		ret->size++;
 	}
 error:
+	freeTokens(argc, argv);
+nterror:
 	freeSitefile(ret);
 	return NULL;
 }
 
 void freeSitefile(Sitefile *site) {
-	for (long i = 0; i < site->size; i++)
-		freeTokens(site->content[i].argc, site->content[i].argv);
+	for (long i = 0; i < site->size; i++) {
+		free(site->content[i].path);
+		free(site->content[i].arg);
+	}
 	free(site->content);
 	free(site);
 }

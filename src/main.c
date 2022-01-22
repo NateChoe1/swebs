@@ -89,15 +89,15 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "No sitefile configured\n");
 		exit(EXIT_FAILURE);
 	}
-	logs = fopen(logout, "a");
-	if (logs == NULL) {
-		fprintf(stderr, "Couldn't open logs file %s\n", logout);
-		exit(EXIT_FAILURE);
-	}
-
 	Sitefile *site = parseFile(sitefile);
 	if (site == NULL) {
 		fprintf(stderr, "Invalid sitefile %s\n", sitefile);
+		exit(EXIT_FAILURE);
+	}
+
+	logs = fopen(logout, "a");
+	if (logs == NULL) {
+		fprintf(stderr, "Couldn't open logs file %s\n", logout);
 		exit(EXIT_FAILURE);
 	}
 
@@ -114,6 +114,7 @@ int main(int argc, char **argv) {
 		RunnerArgs *args = malloc(sizeof(RunnerArgs));
 		if (args == NULL)
 			exit(EXIT_FAILURE);
+		args->site = site;
 		args->pending = pending;
 		args->schedule = schedule;
 		args->id = i;

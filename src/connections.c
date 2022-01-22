@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 
+#include <util.h>
 #include <runner.h>
 #include <sitefile.h>
 #include <responses.h>
@@ -80,41 +81,7 @@ static int processRequest(Connection *conn) {
 	for (int i = 0;; i++) {
 		if (line[i] == ' ') {
 			line[i] = '\0';
-			if (i >= 8)
-				return 1;
-			uint64_t type = 0;
-			for (int j = 0; j < i; j++) {
-				type <<= 8;
-				type |= line[j];
-			}
-			switch (type) {
-				case 0x474554l:
-					conn->type = GET;
-					break;
-				case 0x504f5354l:
-					conn->type = POST;
-					break;
-				case 0x505554l:
-					conn->type = PUT;
-					break;
-				case 0x48454144l:
-					conn->type = HEAD;
-					break;
-				case 0x44454c455445l:
-					conn->type = DELETE;
-					break;
-				case 0x5041544348l:
-					conn->type = PATCH;
-					break;
-				case 0x4f5054494f4e53l:
-					conn->type = OPTIONS;
-					break;
-				default:
-					return 1;
-			}
-			//This would actually be far nicer in HolyC of all
-			//languages. I feel like the context immediately
-			//following each magic number is enough.
+			conn->type = getType(line);
 			line += i + 1;
 			break;
 		}

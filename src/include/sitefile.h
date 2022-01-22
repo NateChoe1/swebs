@@ -17,9 +17,17 @@
 */
 #ifndef _HAVE_SITEFILE
 #define _HAVE_SITEFILE
+#include <util.h>
+
+typedef enum {
+	READ,
+} Command;
+
 typedef struct {
-	int argc;
-	char **argv;
+	RequestType respondto;
+	Command command;
+	char *path;
+	char *arg;
 } SiteCommand;
 
 typedef struct {

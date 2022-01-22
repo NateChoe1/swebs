@@ -18,6 +18,7 @@ sitefiles also allow comments with #
 
 # Part 3: Variables
 
-* ```type```: - The type of http request to respond to. One of:
-	* get
-	* post
+* ```respondto```: - The type of http request to respond to. One of:
+	* GET
+	* POST
+Default: GET

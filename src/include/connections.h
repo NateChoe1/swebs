@@ -27,21 +27,11 @@ typedef enum {
 	SEND_RESPONSE,
 } ConnectionSteps;
 
-typedef enum {
-	GET,
-	POST,
-	PUT,
-	HEAD,
-	DELETE,
-	PATCH,
-	OPTIONS,
-} RequestTypes;
-
 typedef struct Connection {
 	int fd;
 	ConnectionSteps progress;
 
-	RequestTypes type;
+	RequestType type;
 	char *path;
 	//ephemeral
 
