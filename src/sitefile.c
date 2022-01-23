@@ -216,8 +216,8 @@ Sitefile *parseFile(char *path) {
 		if (argc < 3)
 			goto error;
 
-		ret->content[ret->size].path = copyString(argv[1]);
-		if (ret->content[ret->size].path == NULL)
+		if (regcomp(&ret->content[ret->size].path, argv[1],
+		            REG_EXTENDED | REG_NOSUB))
 			goto error;
 
 		if (strcmp(argv[0], "read") == 0) {
@@ -239,7 +239,7 @@ nterror:
 
 void freeSitefile(Sitefile *site) {
 	for (long i = 0; i < site->size; i++) {
-		free(site->content[i].path);
+		regfree(&site->content[i].path);
 		free(site->content[i].arg);
 	}
 	free(site->content);

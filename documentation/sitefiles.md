@@ -12,7 +12,7 @@ sitefiles also allow comments with #
 # Part 2: Commands
 
 * ```set [variable] [value]``` - sets some variable for the following pages
-* ```read [http path] [file path]``` - if the requested path matches ```[http path]```, return the contents of ```[file path]```
+* ```read [http path] [file path]``` - if the requested path matches ```[http path]```, return the contents of ```[file path]```. If [file path] is a directory, then the http path is appended to [file path] and that is read instead.
 
 ##### Other than set, commands should take in a regex as argument 1 and operate on a file specified in argument 2.
 

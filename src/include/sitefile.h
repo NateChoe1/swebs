@@ -17,6 +17,8 @@
 */
 #ifndef _HAVE_SITEFILE
 #define _HAVE_SITEFILE
+#include <regex.h>
+
 #include <util.h>
 
 typedef enum {
@@ -26,7 +28,7 @@ typedef enum {
 typedef struct {
 	RequestType respondto;
 	Command command;
-	char *path;
+	regex_t path;
 	char *arg;
 } SiteCommand;
 
