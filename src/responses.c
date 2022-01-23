@@ -63,13 +63,13 @@ static void readResponse(Connection *conn, char *path) {
 	fclose(file);
 	sendConnection(conn,
 		"HTTP/1.1 200 OK\r\n"
-		"Content-Type: text/html; charset=UTF-8\r\n"
 		"Server: swebs/0.1\r\n"
 		"Content-Length: %ld\r\n"
 		"\r\n", len
 	);
 	write(conn->fd, data, len);
 	free(data);
+	fsync(conn->fd);
 }
 
 int sendResponse(Connection *conn, Sitefile *site) {

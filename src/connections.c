@@ -65,7 +65,7 @@ Connection *newConnection(int fd) {
 }
 
 void resetConnection(Connection *conn) {
-	conn->type = RECEIVE_REQUEST;
+	conn->progress = RECEIVE_REQUEST;
 	conn->fieldCount = 0;
 	free(conn->body);
 	free(conn->path);

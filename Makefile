@@ -1,8 +1,8 @@
 SRC = $(wildcard src/*.c)
 OBJ = $(subst .c,.o,$(subst src,work,$(SRC)))
 LIBS = 
-CFLAGS := -pipe -Wall -Wpedantic -Werror
-CFLAGS += -Isrc/include -pthread -ggdb
+CFLAGS := -O2 -pipe -Wall -Wpedantic -Werror
+CFLAGS += -Isrc/include -pthread
 INSTALLDIR := /usr/bin
 OUT = swebs
 
