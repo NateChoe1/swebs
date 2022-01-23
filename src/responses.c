@@ -119,7 +119,6 @@ forbidden:
 }
 
 int sendResponse(Connection *conn, Sitefile *site) {
-	puts(conn->path);
 	for (int i = 0; i < site->size; i++) {
 		if (site->content[i].respondto != conn->type)
 			continue;
