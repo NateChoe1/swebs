@@ -32,22 +32,28 @@
 #include <responses.h>
 #include <connections.h>
 
-int newConnection(Connection *ret, int fd) {
+Connection *newConnection(int fd) {
+	Connection *ret = malloc(sizeof(Connection));
+	if (ret == NULL)
+		return NULL;
 	ret->fd = fd;
-	if (fcntl(ret->fd, F_SETFL, O_NONBLOCK))
-		return 1;
 	ret->progress = RECEIVE_REQUEST;
 
 	ret->currLineAlloc = 30;
 	ret->currLineLen = 0;
 	ret->currLine = malloc(ret->currLineAlloc);
-	if (ret->currLine == NULL)
-		return 1;
+	if (ret->currLine == NULL) {
+		free(ret);
+		return NULL;
+	}
 
 	ret->allocatedFields = 10;
-	ret->fields = malloc(sizeof(char *[2]) * ret->allocatedFields);
-	if (ret->fields == NULL)
-		return 1;
+	ret->fields = malloc(sizeof(Field) * ret->allocatedFields);
+	if (ret->fields == NULL) {
+		free(ret->currLine);
+		free(ret);
+		return NULL;
+	}
 
 	ret->path = NULL;
 	ret->body = NULL;
@@ -55,7 +61,7 @@ int newConnection(Connection *ret, int fd) {
 	//initialized to NULL so that free() doens't fail.
 
 	ret->next = NULL;
-	return 0;
+	return ret;
 }
 
 void resetConnection(Connection *conn) {
@@ -82,6 +88,8 @@ static int processRequest(Connection *conn) {
 		if (line[i] == ' ') {
 			line[i] = '\0';
 			conn->type = getType(line);
+			if (conn->type == INVALID)
+				return 1;
 			line += i + 1;
 			break;
 		}
@@ -114,9 +122,11 @@ static int processRequest(Connection *conn) {
 static int processField(Connection *conn) {
 	if (conn->currLineLen == 0) {
 		conn->progress = RECEIVE_BODY;
+		conn->bodylen = 0;
 		for (size_t i = 0; i < conn->fieldCount; i++) {
-			if (strcmp(conn->fields[i][0], "Content-Length") == 0)
-				conn->bodylen = atol(conn->fields[i][1]);
+			if (strcmp(conn->fields[i].field,
+			           "Content-Length") == 0)
+				conn->bodylen = atol(conn->fields[i].value);
 		}
 		conn->body = malloc(conn->bodylen + 1);
 		if (conn->body == NULL)
@@ -127,7 +137,7 @@ static int processField(Connection *conn) {
 
 	if (conn->fieldCount >= conn->allocatedFields) {
 		conn->allocatedFields *= 2;
-		char *(*newfields)[2] = realloc(conn->fields, conn->allocatedFields *
+		Field *newfields = realloc(conn->fields, conn->allocatedFields *
 		                                sizeof(char *[2]));
 		if (newfields == NULL)
 			return 1;
@@ -140,17 +150,17 @@ static int processField(Connection *conn) {
 	if (split == NULL)
 		return 1;
 
-	char *header = malloc(split - line + 1);
-	memcpy(header, line, split - line);
-	header[split - line] = '\0';
+	char *field = malloc(split - line + 1);
+	memcpy(field, line, split - line);
+	field[split - line] = '\0';
 
 	linelen -= split - line + 2;
 	line += split - line + 2;
 	char *value = malloc(linelen + 1);
 	memcpy(value, line, linelen + 1);
 
-	conn->fields[conn->fieldCount][0] = header;
-	conn->fields[conn->fieldCount][1] = value;
+	conn->fields[conn->fieldCount].field = field;
+	conn->fields[conn->fieldCount].value = value;
 
 	conn->fieldCount++;
 
@@ -188,9 +198,9 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 		if (conn->receivedBody < conn->bodylen)
 			conn->body[conn->receivedBody++] = c;
 	}
-	if (conn->receivedBody >= conn->bodylen) {
+	if (conn->progress == RECEIVE_BODY &&
+	    conn->receivedBody >= conn->bodylen)
 		sendResponse(conn, site);
-	}
 	return 0;
 }
 
@@ -199,7 +209,7 @@ int updateConnection(Connection *conn, Sitefile *site) {
 	for (;;) {
 		ssize_t received = read(conn->fd, buff, sizeof(buff));
 		if (received < 0)
-			return 1;
+			return errno != EAGAIN;
 		if (received == 0)
 			break;
 		for (unsigned long i = 0; i < received; i++) {

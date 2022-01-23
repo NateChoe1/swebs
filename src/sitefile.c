@@ -71,6 +71,13 @@ static ReturnCode getToken(FILE *file, char **ret) {
 	*ret = malloc(allocatedLen);
 
 	for (len = 0;; len++) {
+		if (len >= allocatedLen) {
+			allocatedLen *= 2;
+			char *newret = realloc(*ret, allocatedLen);
+			if (newret == NULL)
+				goto error;
+			*ret = newret;
+		}
 		int c = fgetc(file);
 		switch (type) {
 			case QUOTED:
@@ -94,13 +101,6 @@ static ReturnCode getToken(FILE *file, char **ret) {
 				if (type == NONQUOTED)
 					goto gotToken;
 				goto error;
-		}
-		if (len >= allocatedLen) {
-			allocatedLen *= 2;
-			char *newret = realloc(*ret, allocatedLen);
-			if (newret == NULL)
-				goto error;
-			*ret = newret;
 		}
 		(*ret)[len] = c;
 	}

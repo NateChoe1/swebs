@@ -27,6 +27,11 @@ typedef enum {
 	SEND_RESPONSE,
 } ConnectionSteps;
 
+typedef struct {
+	char *field;
+	char *value;
+} Field;
+
 typedef struct Connection {
 	int fd;
 	ConnectionSteps progress;
@@ -35,7 +40,7 @@ typedef struct Connection {
 	char *path;
 	//ephemeral
 
-	char *(*fields)[2];
+	Field *fields;
 	//pointer to array of 2 pointers, persistent
 	size_t fieldCount;
 	size_t allocatedFields;
@@ -57,7 +62,7 @@ typedef struct Connection {
 //Ephemeral fields: Things which are freed and reallocated after each new
 //request, path, body
 
-int newConnection(Connection *ret, int fd);
+Connection *newConnection(int fd);
 //returns non-zero on error. creates a new connection bound to fd
 void resetConnection(Connection *conn);
 void freeConnection(Connection *conn);

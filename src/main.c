@@ -21,6 +21,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <netinet/in.h>
@@ -75,7 +76,7 @@ int main(int argc, char **argv) {
 	assert(fd >= 0);
 	int opt = 1;
 	assert(setsockopt(fd, SOL_SOCKET,
-	                  SO_KEEPALIVE | SO_REUSEPORT,
+	                  SO_REUSEPORT,
 	                  &opt, sizeof(opt)) >= 0);
 	struct sockaddr_in addr;
 	addr.sin_family = AF_INET;
@@ -127,16 +128,19 @@ int main(int argc, char **argv) {
 			int newfd = accept(fd, (struct sockaddr *) &addr, &addrlen);
 			if (newfd < 0)
 				exit(EXIT_FAILURE);
+			int flags = fcntl(newfd, F_GETFL);
+			if (fcntl(newfd, F_SETFL, flags | O_NONBLOCK))
+				exit(EXIT_FAILURE);
 			int lowestThread = 0;
-			int lowestCount = schedule[0];
+			int lowestCount = pending[0];
 			for (int i = 1; i < processes - 1; i++) {
-				if (schedule[i] < lowestCount) {
+				if (pending[i] < lowestCount) {
 					lowestThread = i;
-					lowestCount = schedule[i];
+					lowestCount = pending[i];
 				}
 			}
-			schedule[0] = lowestThread;
 			schedule[1] = newfd;
+			schedule[0] = lowestThread;
 		}
 	}
 }

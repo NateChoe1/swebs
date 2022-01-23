@@ -42,9 +42,8 @@ void *runServer(RunnerArgs *args) {
 	//list where we add to the end and read from the beginning.
 	for (;;) {
 		if (schedule[0] == id) {
-			Connection *newconn = malloc(sizeof(Connection));
+			Connection *newconn = newConnection(schedule[1]);
 			assert(newconn != NULL);
-			assert(newConnection(newconn, schedule[1]) == 0);
 
 			if (last == NULL)
 				connections = newconn;
@@ -62,17 +61,16 @@ void *runServer(RunnerArgs *args) {
 		//pointers which have pointers.
 		while (iter != NULL) {
 			if (updateConnection(iter, site)) {
-				if (iter->next == NULL)
+				if (iter == last)
 					last = prev;
+				Connection *old = iter;
+				iter = iter->next;
+				freeConnection(old);
 				if (prev == NULL)
-					connections = connections->next;
+					connections = iter;
 				else
-					prev->next = iter->next;
-				Connection *newiter = iter->next;
-				freeConnection(iter);
-				iter = newiter;
+					prev->next = iter;
 				pending[id]--;
-				//TODO: Clean this later
 			}
 			else {
 				prev = iter;
