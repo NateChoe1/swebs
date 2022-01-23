@@ -124,8 +124,11 @@ int main(int argc, char **argv) {
 	}
 
 	for (;;) {
+		fsync(fd);
+		//TODO: Find out why this works
 		if (schedule[0] == -1) {
-			int newfd = accept(fd, (struct sockaddr *) &addr, &addrlen);
+			int newfd = accept(fd, (struct sockaddr *) &addr,
+			                       &addrlen);
 			if (newfd < 0)
 				exit(EXIT_FAILURE);
 			int flags = fcntl(newfd, F_GETFL);
