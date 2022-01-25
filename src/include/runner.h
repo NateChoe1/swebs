@@ -27,11 +27,10 @@ typedef struct {
 	int *pending;
 	//pending[thread id] = the number of connections being handled by that
 	//   thread
-	int *schedule;
+	int notify;
 	/*
-	 * schedule[0] = the thread that should take the next connection (-1 if
-	 *    there is no connection).
-	 * schedule[1] = the fd of the connection to be accepted
+	 * When this runner should accept a connection, notify will contain an
+	 * int ready to be read.
 	 */
 	int id;
 } RunnerArgs;

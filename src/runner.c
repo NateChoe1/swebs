@@ -22,6 +22,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include <poll.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -33,49 +34,56 @@
 void *runServer(RunnerArgs *args) {
 	Sitefile *site = args->site;
 	int *pending = args->pending;
-	int *schedule = args->schedule;
+	int notify = args->notify;
 	int id = args->id;
 
-	Connection *connections = NULL;
-	Connection *last = NULL;
-	//Connections are processed in a queue, which is really just a linked
-	//list where we add to the end and read from the beginning.
+	int allocConns = 100;
+	struct pollfd *fds = malloc(sizeof(struct pollfd) * allocConns);
+	Connection *connections = malloc(sizeof(Connection) * allocConns);
+	assert(fds != NULL);
+	assert(connections != NULL);
+	fds[0].fd = notify;
+	fds[0].events = POLLIN;
+	int connCount = 1;
+	//connections are 1 indexed, this is because fds[0] is the notify fd.
+
 	for (;;) {
-		if (schedule[0] == id) {
-			Connection *newconn = newConnection(schedule[1]);
-			assert(newconn != NULL);
+		poll(fds, connCount, -1);
 
-			if (last == NULL)
-				connections = newconn;
-			else
-				last->next = newconn;
-			last = newconn;
-			pending[id]++;
-			schedule[0] = -1;
-		}
-
-		Connection *prev = NULL;
-		Connection *iter = connections;
-		//I know of the Linus Thorvalds good taste code thing, it just
-		//gets very confusing very fast to think about pointers to
-		//pointers which have pointers.
-		while (iter != NULL) {
-			if (updateConnection(iter, site)) {
-				if (iter == last)
-					last = prev;
-				Connection *old = iter;
-				iter = iter->next;
-				freeConnection(old);
-				if (prev == NULL)
-					connections = iter;
-				else
-					prev->next = iter;
+		for (int i = 1; i < connCount; i++) {
+			if (updateConnection(connections + i, site)) {
+				connCount--;
+				memcpy(fds + i, fds + connCount,
+						sizeof(struct pollfd));
 				pending[id]--;
 			}
-			else {
-				prev = iter;
-				iter = iter->next;
+		}
+
+		if (fds[0].revents == POLLIN) {
+			if (connCount >= allocConns) {
+				allocConns *= 2;
+				struct pollfd *newfds = realloc(fds,
+					sizeof(struct pollfd) * allocConns);
+				if (newfds == NULL)
+					exit(EXIT_FAILURE);
+				fds = newfds;
+
+				Connection *newconns = realloc(connections,
+					sizeof(Connection) * allocConns);
+				if (newconns == NULL)
+					exit(EXIT_FAILURE);
+				connections = newconns;
 			}
+			int newfd;
+			if (read(notify, &newfd, sizeof(newfd)) < sizeof(newfd))
+				exit(EXIT_FAILURE);
+			fds[connCount].fd = newfd;
+			fds[connCount].events = POLLIN;
+
+			if (newConnection(newfd, connections + connCount))
+				exit(EXIT_FAILURE);
+			connCount++;
+			pending[id]++;
 		}
 	}
 	return NULL;

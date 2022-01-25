@@ -50,8 +50,6 @@ typedef struct Connection {
 	size_t bodylen;
 	size_t receivedBody;
 
-	struct Connection *next;
-
 	char *currLine;
 	//persistent
 	size_t currLineAlloc;
@@ -62,7 +60,7 @@ typedef struct Connection {
 //Ephemeral fields: Things which are freed and reallocated after each new
 //request, path, body
 
-Connection *newConnection(int fd);
+int newConnection(int fd, Connection *ret);
 //returns non-zero on error. creates a new connection bound to fd
 void resetConnection(Connection *conn);
 void freeConnection(Connection *conn);

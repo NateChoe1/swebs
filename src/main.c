@@ -103,21 +103,20 @@ int main(int argc, char **argv) {
 	}
 
 	int *pending = calloc(processes - 1, sizeof(int));
-	int *schedule = malloc(2 * sizeof(int));
-	if (schedule == NULL)
-		exit(EXIT_FAILURE);
-	schedule[0] = -1;
+	int (*notify)[2] = malloc(sizeof(int[2]) * (processes - 1));
 	pthread_t *threads = malloc(sizeof(pthread_t) * (processes - 1));
 	if (threads == NULL)
 		exit(EXIT_FAILURE);
 
 	for (int i = 0; i < processes - 1; i++) {
+		if (pipe(notify[i]))
+			exit(EXIT_FAILURE);
 		RunnerArgs *args = malloc(sizeof(RunnerArgs));
 		if (args == NULL)
 			exit(EXIT_FAILURE);
 		args->site = site;
 		args->pending = pending;
-		args->schedule = schedule;
+		args->notify = notify[i][0];
 		args->id = i;
 		pthread_create(threads + i, NULL,
 		               (void*(*)(void*)) runServer, args);
@@ -126,24 +125,23 @@ int main(int argc, char **argv) {
 	for (;;) {
 		fsync(fd);
 		//TODO: Find out why this works
-		if (schedule[0] == -1) {
-			int newfd = accept(fd, (struct sockaddr *) &addr,
-			                       &addrlen);
-			if (newfd < 0)
-				exit(EXIT_FAILURE);
-			int flags = fcntl(newfd, F_GETFL);
-			if (fcntl(newfd, F_SETFL, flags | O_NONBLOCK))
-				exit(EXIT_FAILURE);
-			int lowestThread = 0;
-			int lowestCount = pending[0];
-			for (int i = 1; i < processes - 1; i++) {
-				if (pending[i] < lowestCount) {
-					lowestThread = i;
-					lowestCount = pending[i];
-				}
+		int newfd = accept(fd, (struct sockaddr *) &addr,
+		                       &addrlen);
+		if (newfd < 0)
+			exit(EXIT_FAILURE);
+		int flags = fcntl(newfd, F_GETFL);
+		if (fcntl(newfd, F_SETFL, flags | O_NONBLOCK))
+			exit(EXIT_FAILURE);
+		int lowestThread = 0;
+		int lowestCount = pending[0];
+		for (int i = 1; i < processes - 1; i++) {
+			if (pending[i] < lowestCount) {
+				lowestThread = i;
+				lowestCount = pending[i];
 			}
-			schedule[1] = newfd;
-			schedule[0] = lowestThread;
 		}
+		if (write(notify[lowestThread][1], &newfd, sizeof(newfd))
+		          < sizeof(newfd))
+			exit(EXIT_FAILURE);
 	}
 }

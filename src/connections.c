@@ -32,36 +32,28 @@
 #include <responses.h>
 #include <connections.h>
 
-Connection *newConnection(int fd) {
-	Connection *ret = malloc(sizeof(Connection));
-	if (ret == NULL)
-		return NULL;
+int newConnection(int fd, Connection *ret) {
 	ret->fd = fd;
 	ret->progress = RECEIVE_REQUEST;
 
 	ret->currLineAlloc = 30;
 	ret->currLineLen = 0;
 	ret->currLine = malloc(ret->currLineAlloc);
-	if (ret->currLine == NULL) {
-		free(ret);
-		return NULL;
-	}
+	if (ret->currLine == NULL)
+		return 1;
 
 	ret->allocatedFields = 10;
 	ret->fields = malloc(sizeof(Field) * ret->allocatedFields);
 	if (ret->fields == NULL) {
 		free(ret->currLine);
-		free(ret);
-		return NULL;
+		return 1;
 	}
 
 	ret->path = NULL;
 	ret->body = NULL;
 	//pointers to things that are allocated within functions should be
 	//initialized to NULL so that free() doens't fail.
-
-	ret->next = NULL;
-	return ret;
+	return 0;
 }
 
 void resetConnection(Connection *conn) {
@@ -79,7 +71,6 @@ void freeConnection(Connection *conn) {
 	free(conn->path);
 	free(conn->fields);
 	free(conn->body);
-	free(conn);
 }
 
 static int processRequest(Connection *conn) {
