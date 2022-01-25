@@ -1,0 +1,4 @@
+read ^/$ site/index.html
+read ^/hello$  site/hello.html
+read ^/blog/.*$ site/blog/
+#/blog/2021-1-25.html turns into site/blog//blog/2021-1-25.html

@@ -1,0 +1,11 @@
+If the user requests
+
+/blog/2021-1-25
+
+because the sitefile says
+
+site/blog/
+
+these 2 strings are appended into
+
+site/blog//blog/2021-1-25

@@ -1,0 +1,2 @@
+This is a blog site. Ideally you wouldn't use any relative path names, but for
+portability reasons I'm assuming that swebs is being run in this directory.
