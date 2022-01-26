@@ -15,10 +15,22 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+#include <ctype.h>
 #include <string.h>
 #include <stdint.h>
 
 #include <util.h>
+
+int istrcmp(char *s1, char *s2) {
+	for (int i = 0;; i++) {
+		char c1 = tolower(s1[i]);
+		char c2 = tolower(s2[i]);
+		if (c1 != c2)
+			return c1 - c2;
+		if (c1 == '\0')
+			return 0;
+	}
+}
 
 RequestType getType(char *str) {
 	if (strlen(str) >= 8)

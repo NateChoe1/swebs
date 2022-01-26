@@ -19,6 +19,7 @@
 #define _HAVE_RESPONSE_UTIL
 #include <connections.h>
 
+#define ERROR_400 "400 Bad Request"
 #define ERROR_403 "403 Forbidden"
 #define ERROR_404 "404 Not Found"
 #define ERROR_500 "500 Internal Server Error"

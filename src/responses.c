@@ -66,7 +66,6 @@ static void readResponse(Connection *conn, char *path) {
 		}
 
 		file = fopen(requestPath, "r");
-		puts(requestPath);
 		free(assembledPath);
 	}
 	else
@@ -98,8 +97,21 @@ forbidden:
 }
 
 int sendResponse(Connection *conn, Sitefile *site) {
+	char *host = NULL;
+	for (int i = 0; i < conn->fieldCount; i++) {
+		if (strcmp(conn->fields[i].field, "Host") == 0) {
+			host = conn->fields[i].value;
+			break;
+		}
+	}
+	if (host == NULL) {
+		sendErrorResponse(conn, ERROR_400);
+		return 1;
+	}
 	for (int i = 0; i < site->size; i++) {
 		if (site->content[i].respondto != conn->type)
+			continue;
+		if (istrcmp(site->content[i].host, host))
 			continue;
 		if (regexec(&site->content[i].path, conn->path, 0, NULL, 0)
 		    == 0) {

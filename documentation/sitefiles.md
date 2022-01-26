@@ -19,6 +19,6 @@ sitefiles also allow comments with #
 # Part 3: Variables
 
 * ```respondto```: - The type of http request to respond to. One of:
-	* GET
+	* GET (defualt)
 	* POST
-Default: GET
+* ```host```: - The hostname to respond to. Case insensitive, default: localhost

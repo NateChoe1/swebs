@@ -30,5 +30,7 @@ typedef enum {
 	//INVALID in HTTP/1.1.
 } RequestType;
 
+int istrcmp(char *s1, char *s2);
+//case insensitive strcmp
 RequestType getType(char *str);
 #endif

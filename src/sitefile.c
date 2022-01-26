@@ -180,6 +180,7 @@ Sitefile *parseFile(char *path) {
 		return NULL;
 	}
 	RequestType respondto = GET;
+	char *host = copyString("localhost");
 	int argc;
 	char **argv;
 	for (;;) {
@@ -201,8 +202,21 @@ Sitefile *parseFile(char *path) {
 				if (respondto == INVALID)
 					goto error;
 			}
+			else if (strcmp(argv[1], "host") == 0) {
+				if (istrcmp(host, argv[2]) == 0)
+					goto setValue;
+				for (int i = 0; i < ret->size; i++) {
+					if (istrcmp(argv[2],
+					    ret->content[i].host) == 0) {
+						host = ret->content[i].host;
+						goto setValue;
+					}
+				}
+				host = copyString(argv[2]);
+			}
 			else
 				goto error;
+setValue:
 			continue;
 		}
 		if (ret->size >= allocatedLength) {
@@ -228,6 +242,8 @@ Sitefile *parseFile(char *path) {
 		else
 			goto error;
 		freeTokens(argc, argv);
+		ret->content[ret->size].respondto = respondto;
+		ret->content[ret->size].host = host;
 		ret->size++;
 	}
 error:
