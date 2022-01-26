@@ -15,10 +15,16 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef _HAVE_RESPONSES
-#define _HAVE_RESPONSES
-#include <sitefile.h>
+#ifndef _HAVE_RESPONSE_UTIL
+#define _HAVE_RESPONSE_UTIL
 #include <connections.h>
 
-int sendResponse(Connection *conn, Sitefile *site);
+#define ERROR_403 "403 Forbidden"
+#define ERROR_404 "404 Not Found"
+#define ERROR_500 "500 Internal Server Error"
+
+int sendStringResponse(Connection *conn, char *status, char *str);
+int sendBinaryResponse(Connection *conn, char *status, void *data, size_t len);
+int sendErrorResponse(Connection *conn, char *error);
+//sendErrorResponse(conn, "404 Not found");
 #endif

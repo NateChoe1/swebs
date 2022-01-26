@@ -15,59 +15,49 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
+
+#include <errno.h>
 #include <limits.h>
 #include <unistd.h>
 #include <sys/stat.h>
 
 #include <responses.h>
-
-static int sendConnection(Connection *conn, char *format, ...) {
-	va_list ap;
-	va_start(ap, format);
-	int len = vsnprintf(NULL, 0, format, ap);
-	char *data = malloc(len + 1);
-	if (data == NULL)
-		return 1;
-
-	va_end(ap);
-	va_start(ap, format);
-
-	vsnprintf(data, len + 1, format, ap);
-	if (write(conn->fd, data, len) < len) {
-		free(data);
-		return 1;
-	}
-	free(data);
-	return 0;
-}
+#include <responseutil.h>
 
 static void readResponse(Connection *conn, char *path) {
 	FILE *file;
 	struct stat statbuf;
-	if (stat(path, &statbuf))
+	if (stat(path, &statbuf)) {
+		sendErrorResponse(conn, ERROR_404);
 		return;
+	}
 	if (S_ISDIR(statbuf.st_mode)) {
 		long reqPathLen = strlen(conn->path);
 		long pathLen = strlen(path);
 		char *assembledPath = malloc(reqPathLen + pathLen + 1);
 		if (assembledPath == NULL)
-			return;
+			goto error;
 		memcpy(assembledPath, path, pathLen);
 		memcpy(assembledPath + pathLen, conn->path, reqPathLen + 1);
 
 		char requestPath[PATH_MAX];
 		if (realpath(assembledPath, requestPath) == NULL) {
+			if (errno == ENOENT) {
+				free(assembledPath);
+				sendErrorResponse(conn, ERROR_404);
+				return;
+			}
 			free(assembledPath);
-			return;
+			goto error;
 		}
 		char responsePath[PATH_MAX];
 		if (realpath(path, responsePath) == NULL) {
 			free(assembledPath);
-			return;
+			goto error;
 		}
 		size_t responsePathLen = strlen(responsePath);
 		if (memcmp(requestPath, responsePath, responsePathLen)) {
@@ -76,45 +66,34 @@ static void readResponse(Connection *conn, char *path) {
 		}
 
 		file = fopen(requestPath, "r");
+		puts(requestPath);
 		free(assembledPath);
 	}
 	else
 		file = fopen(path, "r");
-	if (file == NULL) {
+	if (file == NULL)
 		goto forbidden;
-	}
 	fseek(file, 0, SEEK_END);
 	long len = ftell(file);
 	char *data = malloc(len);
 	if (data == NULL)
 		return;
 	fseek(file, 0, SEEK_SET);
-	if (fread(data, 1, len, file) < len)
+	if (fread(data, 1, len, file) < len) {
+		fclose(file);
 		goto error;
+	}
 	fclose(file);
-	sendConnection(conn,
-		"HTTP/1.1 200 OK\r\n"
-		"Server: swebs/0.1\r\n"
-		"Content-Length: %ld\r\n"
-		"\r\n", len
-	);
-	if (write(conn->fd, data, len) < len)
+	if (sendBinaryResponse(conn, "200 OK", data, len) < len)
 		goto error;
 	free(data);
 	fsync(conn->fd);
 	return;
 error:
-	fclose(file);
+	sendErrorResponse(conn, ERROR_500);
 	return;
 forbidden:
-	sendConnection(conn,
-		"HTTP/1.1 403 Forbidden\r\n"
-		"Content-Type: text/html; charset=UTF-8\r\n"
-		"Server: swebs/0.1\r\n"
-		"Content-Length: 21\r\n"
-		"\r\n"
-		"<h1>Invalid page</h1>\n"
-	);
+	sendErrorResponse(conn, ERROR_403);
 	return;
 }
 
@@ -133,14 +112,7 @@ int sendResponse(Connection *conn, Sitefile *site) {
 			}
 		}
 	}
-	sendConnection(conn,
-		"HTTP/1.1 404 Not Found\r\n"
-		"Content-Type: text/html; charset=UTF-8\r\n"
-		"Server: swebs/0.1\r\n"
-		"Content-Length: 24\r\n"
-		"\r\n"
-		"<h1>File not found</h1>\n"
-	);
+	sendErrorResponse(conn, ERROR_404);
 end:
 	resetConnection(conn);
 	return 0;
