@@ -91,7 +91,7 @@ error:
 	return NULL;
 }
 
-Stream *acceptStream(Listener *listener, int flags) {
+Stream *acceptStream(Listener *listener) {
 	Stream *ret = malloc(sizeof(Stream));
 	if (ret == NULL)
 		return NULL;
@@ -125,10 +125,6 @@ Stream *acceptStream(Listener *listener, int flags) {
 			if (gnutls_handshake(ret->session) < 0)
 				goto error;
 			break;
-	}
-	{
-		int flags = fcntl(ret->fd, F_GETFD);
-		fcntl(ret->fd, F_SETFD, flags | O_NONBLOCK);
 	}
 	return ret;
 error:

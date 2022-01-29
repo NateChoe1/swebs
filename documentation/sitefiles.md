@@ -31,3 +31,4 @@ sitefiles also allow comments with #
 	* TLS
 * ```key``` - The filepath of the private key to use if transport == TLS
 * ```cert``` - The filepath of the certificate to use if transport == TLS
+* ```timeout``` - The amount of time to wait for data before closing the connection in ms

@@ -44,7 +44,7 @@ Listener *createListener(SocketType type, uint16_t port, int backlog, ...);
 //extra arguments depend on type (similar to fcntl):
 //tcp: (void)
 //tls: (char *keyfile, char *certfile, char *ocspfile)
-Stream *acceptStream(Listener *listener, int flags);
+Stream *acceptStream(Listener *listener);
 //returns 1 on error, accepts fcntl flags
 
 void freeListener(Listener *listener);

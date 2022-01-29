@@ -175,6 +175,7 @@ Sitefile *parseSitefile(char *path) {
 	ret->type = TCP;
 	ret->key = NULL;
 	ret->cert = NULL;
+	ret->timeout = 0;
 	int allocatedLength = 50;
 	ret->size = 0;
 	ret->content = malloc(allocatedLength * sizeof(SiteCommand));
@@ -237,6 +238,8 @@ setValue:
 				ret->key = copyString(argv[2]);
 			else if (strcmp(argv[1], "cert") == 0)
 				ret->cert = copyString(argv[2]);
+			else if (strcmp(argv[1], "timeout") == 0)
+				ret->timeout = atoi(argv[2]);
 			else
 				goto error;
 			continue;

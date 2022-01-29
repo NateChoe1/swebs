@@ -53,6 +53,13 @@ int newConnection(Stream *stream, Connection *ret) {
 	ret->body = NULL;
 	//pointers to things that are allocated within functions should be
 	//initialized to NULL so that free() doens't fail.
+
+	struct timespec currentTime;
+	if (clock_gettime(CLOCK_MONOTONIC, &currentTime) < 0) {
+		free(ret->currLine);
+		return 1;
+	}
+	memcpy(&ret->lastdata, &currentTime, sizeof(struct timespec));
 	return 0;
 }
 
@@ -195,14 +202,26 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 	return 0;
 }
 
+long diff(struct timespec *t1, struct timespec *t2) {
+	return (t2->tv_sec - t1->tv_sec) * 1000 +
+		(t2->tv_nsec - t1->tv_nsec) / 1000000;
+}
+
 int updateConnection(Connection *conn, Sitefile *site) {
 	char buff[300];
 	for (;;) {
+		struct timespec currentTime;
+		if (clock_gettime(CLOCK_MONOTONIC, &currentTime) < 0)
+			return 1;
+		if (site->timeout > 0 &&
+		    diff(&conn->lastdata, &currentTime) > site->timeout)
+			return 1;
 		ssize_t received = recvStream(conn->stream, buff, sizeof(buff));
 		if (received < 0)
 			return errno != EAGAIN;
 		if (received == 0)
 			break;
+		memcpy(&conn->lastdata, &currentTime, sizeof(struct timespec));
 		for (unsigned long i = 0; i < received; i++) {
 			if (processChar(conn, buff[i], site))
 				return 1;

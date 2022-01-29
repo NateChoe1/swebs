@@ -39,6 +39,7 @@ typedef struct {
 	SocketType type;
 	char *key;
 	char *cert;
+	int timeout;
 } Sitefile;
 
 Sitefile *parseSitefile(char *path);

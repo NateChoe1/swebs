@@ -15,6 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -49,15 +50,21 @@ void *runServer(RunnerArgs *args) {
 		poll(fds, connCount, -1);
 
 		for (int i = 1; i < connCount; i++) {
-			if (updateConnection(connections + i, site)) {
-				connCount--;
-				memcpy(fds + i, fds + connCount,
-						sizeof(struct pollfd));
-				pending[id]--;
-			}
+			if (fds[i].revents & POLLRDHUP)
+				goto remove;
+			if (updateConnection(connections + i, site))
+				goto remove;
+			continue;
+remove:
+			connCount--;
+			memcpy(fds + i, fds + connCount,
+					sizeof(struct pollfd));
+			memcpy(connections + i, fds + connCount,
+					sizeof(struct pollfd));
+			pending[id]--;
 		}
 
-		if (fds[0].revents == POLLIN) {
+		if (fds[0].revents & POLLIN) {
 			if (connCount >= allocConns) {
 				allocConns *= 2;
 				struct pollfd *newfds = realloc(fds,
@@ -76,7 +83,7 @@ void *runServer(RunnerArgs *args) {
 			if (read(notify, &stream, sizeof(stream)) < sizeof(stream))
 				exit(EXIT_FAILURE);
 			fds[connCount].fd = stream->fd;
-			fds[connCount].events = POLLIN;
+			fds[connCount].events = POLLIN | POLLRDHUP;
 
 			if (newConnection(stream, connections + connCount))
 				exit(EXIT_FAILURE);

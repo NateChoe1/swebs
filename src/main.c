@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
 	createLog("swebs started");
 
 	for (;;) {
-		Stream *stream = acceptStream(listener, O_NONBLOCK);
+		Stream *stream = acceptStream(listener);
 		if (stream == NULL) {
 			createLog("Accepting a stream failed");
 			continue;

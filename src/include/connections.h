@@ -37,6 +37,9 @@ typedef struct Connection {
 	Stream *stream;
 	ConnectionSteps progress;
 
+	struct timespec lastdata;
+	//the last time that data was received from this connection.
+
 	RequestType type;
 	char *path;
 	//ephemeral

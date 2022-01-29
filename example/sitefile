@@ -1,6 +1,7 @@
 define transport TLS
 define key domain.key
 define cert domain.crt
+define timeout 2000
 
 set host localhost:8000
 read ^/$ site/index.html

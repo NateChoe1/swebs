@@ -1,6 +1,6 @@
 SRC = $(wildcard src/*.c)
 OBJ = $(subst .c,.o,$(subst src,work,$(SRC)))
-LIBS = -pthread -pie $(shell pkg-config --libs gnutls)
+LIBS = -pthread -pie -lrt $(shell pkg-config --libs gnutls)
 CFLAGS := -O2 -pipe -Wall -Wpedantic -Werror
 CFLAGS += -Isrc/include -fpie $(shell pkg-config --cflags gnutls)
 INSTALLDIR := /usr/bin
