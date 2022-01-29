@@ -1,3 +1,7 @@
+define transport TLS
+define key domain.key
+define cert domain.crt
+
 set host localhost:8000
 read ^/$ site/index.html
 read ^/hello$  site/hello.html

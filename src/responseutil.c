@@ -21,7 +21,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <limits.h>
-#include <unistd.h>
+
 #include <sys/stat.h>
 
 #include <responseutil.h>
@@ -40,7 +40,7 @@ static int sendConnection(Connection *conn, char *format, ...) {
 	va_start(ap, format);
 
 	vsprintf(data, format, ap);
-	if (write(conn->fd, data, len) < len) {
+	if (sendStream(conn->stream, data, len) < len) {
 		free(data);
 		return 1;
 	}
@@ -83,5 +83,5 @@ int sendBinaryResponse(Connection *conn, char *status,
 		, status, len)
 	)
 		return 1;
-	return write(conn->fd, data, len) < len;
+	return sendStream(conn->stream, data, len) < len;
 }

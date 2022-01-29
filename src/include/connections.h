@@ -18,6 +18,7 @@
 #ifndef _HAVE_CONNECTIONS
 #define _HAVE_CONNECTIONS
 #include <runner.h>
+#include <sockets.h>
 #include <sitefile.h>
 
 typedef enum {
@@ -33,7 +34,7 @@ typedef struct {
 } Field;
 
 typedef struct Connection {
-	int fd;
+	Stream *stream;
 	ConnectionSteps progress;
 
 	RequestType type;
@@ -60,7 +61,7 @@ typedef struct Connection {
 //Ephemeral fields: Things which are freed and reallocated after each new
 //request, path, body
 
-int newConnection(int fd, Connection *ret);
+int newConnection(Stream *stream, Connection *ret);
 //returns non-zero on error. creates a new connection bound to fd
 void resetConnection(Connection *conn);
 void freeConnection(Connection *conn);

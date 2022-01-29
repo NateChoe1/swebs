@@ -23,9 +23,7 @@
 #include <assert.h>
 
 #include <poll.h>
-#include <fcntl.h>
 #include <unistd.h>
-#include <sys/socket.h>
 
 #include <runner.h>
 #include <sitefile.h>
@@ -74,13 +72,13 @@ void *runServer(RunnerArgs *args) {
 					exit(EXIT_FAILURE);
 				connections = newconns;
 			}
-			int newfd;
-			if (read(notify, &newfd, sizeof(newfd)) < sizeof(newfd))
+			Stream *stream;
+			if (read(notify, &stream, sizeof(stream)) < sizeof(stream))
 				exit(EXIT_FAILURE);
-			fds[connCount].fd = newfd;
+			fds[connCount].fd = stream->fd;
 			fds[connCount].events = POLLIN;
 
-			if (newConnection(newfd, connections + connCount))
+			if (newConnection(stream, connections + connCount))
 				exit(EXIT_FAILURE);
 			connCount++;
 			pending[id]++;

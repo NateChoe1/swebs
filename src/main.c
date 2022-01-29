@@ -20,25 +20,25 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdint.h>
 
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <netinet/in.h>
 
+#include <util.h>
 #include <runner.h>
+#include <sockets.h>
 #include <sitefile.h>
-
-FILE *logs;
 
 int main(int argc, char **argv) {
 	char *logout = "/var/log/swebs.log";
 	char *sitefile = NULL;
 	int processes = 8;
-	uint16_t port = htons(80);
+	uint16_t port = 443;
 	int backlog = 100;
 	for (;;) {
-		int c = getopt(argc, argv, "o:j:s:c:p:b:h");
+		int c = getopt(argc, argv, "o:j:s:p:b:c:hl");
 		if (c == -1)
 			break;
 		switch (c) {
@@ -52,11 +52,26 @@ int main(int argc, char **argv) {
 				sitefile = optarg;
 				break;
 			case 'p':
-				port = htons(atoi(optarg));
+				port = atoi(optarg);
 				break;
 			case 'b':
 				backlog = atoi(optarg);
 				break;
+			case 'l':
+				printf(
+"swebs  Copyright (C) 2022 Nate Choe\n"
+"This is free software, and you are welcome to redistribute under certain\n"
+"conditions, but comes with ABSOLUTELY NO WARRANTY. For more details see the\n"
+"GNU General Public License Version 3\n"
+"\n"
+"This program dynamically links with:\n"
+"  gnutls (gnutls.org)\n"
+"\n"
+"For any complaints, email me at natechoe9@gmail.com\n"
+"I'm a programmer not a lawyer, so there's a good chance I accidentally\n"
+"violated the LGPL.\n"
+				);
+				exit(EXIT_SUCCESS);
 			case 'h':
 				printf(
 "Usage: swebs [options]\n"
@@ -65,39 +80,44 @@ int main(int argc, char **argv) {
 "  -s [site file]            Use that site file (required)\n"
 "  -p [port]                 Set the port (default: 443)\n"
 "  -b [backlog]              Set the socket backlog (default: 100)\n"
+"  -l                        Show some legal details\n"
+"  -h                        Show this help message\n"
 				);
 				exit(EXIT_SUCCESS);
 			case '?':
+				fprintf(stderr, "-h for help\n");
 				exit(EXIT_FAILURE);
 		}
 	}
 
-	int fd = socket(AF_INET, SOCK_STREAM, 0);
-	assert(fd >= 0);
-	int opt = 1;
-	assert(setsockopt(fd, SOL_SOCKET,
-	                  SO_REUSEPORT,
-	                  &opt, sizeof(opt)) >= 0);
-	struct sockaddr_in addr;
-	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = INADDR_ANY;
-	addr.sin_port = port;
-	socklen_t addrlen = sizeof(addr);
-	assert(bind(fd, (struct sockaddr *) &addr, addrlen) >= 0);
-	assert(listen(fd, backlog) >= 0);
 
 	if (sitefile == NULL) {
 		fprintf(stderr, "No sitefile configured\n");
 		exit(EXIT_FAILURE);
 	}
-	Sitefile *site = parseFile(sitefile);
+	Sitefile *site = parseSitefile(sitefile);
 	if (site == NULL) {
 		fprintf(stderr, "Invalid sitefile %s\n", sitefile);
 		exit(EXIT_FAILURE);
 	}
 
-	logs = fopen(logout, "a");
-	if (logs == NULL) {
+	Listener *listener;
+	switch (site->type) {
+		case TCP: default:
+			listener = createListener(TCP, port, backlog);
+			break;
+		case TLS:
+			initTLS();
+			listener = createListener(TLS, port, backlog,
+					site->key, site->cert);
+			break;
+	}
+	if (listener == NULL) {
+		fprintf(stderr, "Failed to create socket\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (initLogging(logout)) {
 		fprintf(stderr, "Couldn't open logs file %s\n", logout);
 		exit(EXIT_FAILURE);
 	}
@@ -122,16 +142,15 @@ int main(int argc, char **argv) {
 		               (void*(*)(void*)) runServer, args);
 	}
 
+	createLog("swebs started");
+
 	for (;;) {
-		fsync(fd);
-		//TODO: Find out why this works
-		int newfd = accept(fd, (struct sockaddr *) &addr,
-		                       &addrlen);
-		if (newfd < 0)
-			exit(EXIT_FAILURE);
-		int flags = fcntl(newfd, F_GETFL);
-		if (fcntl(newfd, F_SETFL, flags | O_NONBLOCK))
-			exit(EXIT_FAILURE);
+		Stream *stream = acceptStream(listener, O_NONBLOCK);
+		if (stream == NULL) {
+			createLog("Accepting a stream failed");
+			continue;
+		}
+
 		int lowestThread = 0;
 		int lowestCount = pending[0];
 		for (int i = 1; i < processes - 1; i++) {
@@ -140,8 +159,8 @@ int main(int argc, char **argv) {
 				lowestCount = pending[i];
 			}
 		}
-		if (write(notify[lowestThread][1], &newfd, sizeof(newfd))
-		          < sizeof(newfd))
+		if (write(notify[lowestThread][1], &stream, sizeof(&stream))
+		          < sizeof(&stream))
 			exit(EXIT_FAILURE);
 	}
 }

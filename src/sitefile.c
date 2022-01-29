@@ -165,13 +165,16 @@ static char *copyString(char *str) {
 	return ret;
 }
 
-Sitefile *parseFile(char *path) {
+Sitefile *parseSitefile(char *path) {
 	FILE *file = fopen(path, "r");
 	if (file == NULL)
 		return NULL;
 	Sitefile *ret = malloc(sizeof(Sitefile));
 	if (ret == NULL)
 		return NULL;
+	ret->type = TCP;
+	ret->key = NULL;
+	ret->cert = NULL;
 	int allocatedLength = 50;
 	ret->size = 0;
 	ret->content = malloc(allocatedLength * sizeof(SiteCommand));
@@ -217,6 +220,25 @@ Sitefile *parseFile(char *path) {
 			else
 				goto error;
 setValue:
+			continue;
+		}
+		else if (strcmp(argv[0], "define") == 0) {
+			if (argc < 3)
+				goto error;
+			if (strcmp(argv[1], "transport") == 0) {
+				if (strcmp(argv[2], "TCP") == 0)
+					ret->type = TCP;
+				else if (strcmp(argv[2], "TLS") == 0)
+					ret->type = TLS;
+				else
+					goto error;
+			}
+			else if (strcmp(argv[1], "key") == 0)
+				ret->key = copyString(argv[2]);
+			else if (strcmp(argv[1], "cert") == 0)
+				ret->cert = copyString(argv[2]);
+			else
+				goto error;
 			continue;
 		}
 		if (ret->size >= allocatedLength) {

@@ -86,7 +86,6 @@ static void readResponse(Connection *conn, char *path) {
 	if (sendBinaryResponse(conn, "200 OK", data, len) < len)
 		goto error;
 	free(data);
-	fsync(conn->fd);
 	return;
 error:
 	sendErrorResponse(conn, ERROR_500);

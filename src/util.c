@@ -15,11 +15,38 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+#include <time.h>
+#include <stdio.h>
 #include <ctype.h>
 #include <string.h>
 #include <stdint.h>
 
 #include <util.h>
+
+static FILE *logs;
+
+int initLogging(char *path) {
+	logs = fopen(path, "a");
+	return logs == NULL;
+}
+
+int createLog(char *msg) {
+	time_t currenttime;
+	time(&currenttime);
+	struct tm *timeinfo = gmtime(&currenttime);
+	if (timeinfo == NULL)
+		return 1;
+	fprintf(logs, "[%d-%02d-%02dT%02d:%02d:%02dZ] %s\n",
+			timeinfo->tm_year + 1900,
+			timeinfo->tm_mon + 1,
+			timeinfo->tm_mday,
+			timeinfo->tm_hour,
+			timeinfo->tm_min,
+			timeinfo->tm_sec,
+			msg);
+	fflush(logs);
+	return 0;
+}
 
 int istrcmp(char *s1, char *s2) {
 	for (int i = 0;; i++) {

@@ -32,8 +32,8 @@
 #include <responses.h>
 #include <connections.h>
 
-int newConnection(int fd, Connection *ret) {
-	ret->fd = fd;
+int newConnection(Stream *stream, Connection *ret) {
+	ret->stream = stream;
 	ret->progress = RECEIVE_REQUEST;
 
 	ret->currLineAlloc = 30;
@@ -66,7 +66,7 @@ void resetConnection(Connection *conn) {
 }
 
 void freeConnection(Connection *conn) {
-	shutdown(conn->fd, SHUT_RDWR);
+	freeStream(conn->stream);
 	free(conn->currLine);
 	free(conn->path);
 	free(conn->fields);
@@ -198,7 +198,7 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 int updateConnection(Connection *conn, Sitefile *site) {
 	char buff[300];
 	for (;;) {
-		ssize_t received = read(conn->fd, buff, sizeof(buff));
+		ssize_t received = recvStream(conn->stream, buff, sizeof(buff));
 		if (received < 0)
 			return errno != EAGAIN;
 		if (received == 0)

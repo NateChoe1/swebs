@@ -36,8 +36,11 @@ typedef struct {
 typedef struct {
 	int size;
 	SiteCommand *content;
+	SocketType type;
+	char *key;
+	char *cert;
 } Sitefile;
 
-Sitefile *parseFile(char *path);
+Sitefile *parseSitefile(char *path);
 void freeSitefile(Sitefile *site);
 #endif

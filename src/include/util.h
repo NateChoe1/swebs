@@ -18,6 +18,11 @@
 #ifndef _HAVE_UTIL
 #define _HAVE_UTIL
 typedef enum {
+	TCP,
+	TLS,
+} SocketType;
+
+typedef enum {
 	GET,
 	POST,
 	PUT,
@@ -30,6 +35,8 @@ typedef enum {
 	//INVALID in HTTP/1.1.
 } RequestType;
 
+int initLogging(char *path);
+int createLog(char *msg);
 int istrcmp(char *s1, char *s2);
 //case insensitive strcmp
 RequestType getType(char *str);
