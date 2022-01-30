@@ -19,6 +19,7 @@
 #define _HAVE_RESPONSE_UTIL
 #include <connections.h>
 
+#define CODE_200  "200 OK"
 #define ERROR_400 "400 Bad Request"
 #define ERROR_403 "403 Forbidden"
 #define ERROR_404 "404 Not Found"
@@ -27,5 +28,6 @@
 int sendStringResponse(Connection *conn, char *status, char *str);
 int sendBinaryResponse(Connection *conn, char *status, void *data, size_t len);
 int sendErrorResponse(Connection *conn, char *error);
-//sendErrorResponse(conn, "404 Not found");
+//sendErrorResponse(conn, ERROR_404);
+int sendHeader(Connection *conn, char *status, size_t len);
 #endif

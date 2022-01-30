@@ -28,12 +28,12 @@
 #include <responses.h>
 #include <responseutil.h>
 
-static void readResponse(Connection *conn, char *path) {
+static int readResponse(Connection *conn, char *path) {
 	FILE *file;
 	struct stat statbuf;
 	if (stat(path, &statbuf)) {
 		sendErrorResponse(conn, ERROR_404);
-		return;
+		return -1;
 	}
 	if (S_ISDIR(statbuf.st_mode)) {
 		long reqPathLen = strlen(conn->path);
@@ -49,7 +49,7 @@ static void readResponse(Connection *conn, char *path) {
 			if (errno == ENOENT) {
 				free(assembledPath);
 				sendErrorResponse(conn, ERROR_404);
-				return;
+				return -1;
 			}
 			free(assembledPath);
 			goto error;
@@ -74,12 +74,12 @@ static void readResponse(Connection *conn, char *path) {
 		if (stat(requestPath, &requestbuf)) {
 			free(assembledPath);
 			sendErrorResponse(conn, ERROR_404);
-			return;
+			return -1;
 		}
 		if (S_ISDIR(requestbuf.st_mode)) {
 			free(assembledPath);
 			sendErrorResponse(conn, ERROR_400);
-			return;
+			return -1;
 		}
 
 		file = fopen(requestPath, "r");
@@ -91,25 +91,15 @@ static void readResponse(Connection *conn, char *path) {
 		goto forbidden;
 	fseek(file, 0, SEEK_END);
 	long len = ftell(file);
-	char *data = malloc(len);
-	if (data == NULL)
-		return;
 	fseek(file, 0, SEEK_SET);
-	if (fread(data, 1, len, file) < len) {
-		fclose(file);
-		goto error;
-	}
-	fclose(file);
-	if (sendBinaryResponse(conn, "200 OK", data, len) < len)
-		goto error;
-	free(data);
-	return;
+	sendHeader(conn, CODE_200, len);
+	return fileno(file);
 error:
 	sendErrorResponse(conn, ERROR_500);
-	return;
+	return -1;
 forbidden:
 	sendErrorResponse(conn, ERROR_403);
-	return;
+	return -1;
 }
 
 static int fullmatch(regex_t *regex, char *str) {
@@ -119,7 +109,7 @@ static int fullmatch(regex_t *regex, char *str) {
 	return match.rm_so != 0 || match.rm_eo != strlen(str);
 }
 
-int sendResponse(Connection *conn, Sitefile *site) {
+int getResponse(Connection *conn, Sitefile *site) {
 	char *host = NULL;
 	for (int i = 0; i < conn->fieldCount; i++) {
 		if (strcmp(conn->fields[i].field, "Host") == 0) {
@@ -137,18 +127,23 @@ int sendResponse(Connection *conn, Sitefile *site) {
 		if (fullmatch(&site->content[i].host, host))
 			continue;
 		if (fullmatch(&site->content[i].path, conn->path) == 0) {
+			int fd = -1;
 			switch (site->content[i].command) {
 				case READ:
-					readResponse(conn, site->content[i].arg);
-					goto end;
+					return
+						fd = readResponse(conn,
+							site->content[i].arg);
 				default:
 					sendErrorResponse(conn, ERROR_500);
 					return 1;
 			}
+			if (fd == -1)
+				return 1;
+			conn->fd = fd;
+			conn->progress = SEND_RESPONSE;
+			return 0;
 		}
 	}
 	sendErrorResponse(conn, ERROR_404);
-end:
-	resetConnection(conn);
-	return 0;
+	return -1;
 }

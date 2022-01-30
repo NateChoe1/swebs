@@ -85,3 +85,12 @@ int sendBinaryResponse(Connection *conn, char *status,
 		return 1;
 	return sendStream(conn->stream, data, len) < len;
 }
+
+int sendHeader(Connection *conn, char *status, size_t len) {
+	return (sendConnection(conn,
+		"HTTP/1.1 %s\r\n"
+		CONST_FIELDS
+		"Content-Length: %lu\r\n"
+		"\r\n"
+		, status, len));
+}
