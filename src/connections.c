@@ -202,7 +202,7 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 	return 0;
 }
 
-long diff(struct timespec *t1, struct timespec *t2) {
+static long diff(struct timespec *t1, struct timespec *t2) {
 	return (t2->tv_sec - t1->tv_sec) * 1000 +
 		(t2->tv_nsec - t1->tv_nsec) / 1000000;
 }
@@ -220,12 +220,11 @@ int updateConnection(Connection *conn, Sitefile *site) {
 		if (received < 0)
 			return errno != EAGAIN;
 		if (received == 0)
-			break;
+			return 0;
 		memcpy(&conn->lastdata, &currentTime, sizeof(struct timespec));
 		for (unsigned long i = 0; i < received; i++) {
 			if (processChar(conn, buff[i], site))
 				return 1;
 		}
 	}
-	return 0;
 }

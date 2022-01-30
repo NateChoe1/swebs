@@ -91,7 +91,7 @@ error:
 	return NULL;
 }
 
-Stream *acceptStream(Listener *listener) {
+Stream *acceptStream(Listener *listener, int flags) {
 	Stream *ret = malloc(sizeof(Stream));
 	if (ret == NULL)
 		return NULL;
@@ -103,6 +103,9 @@ Stream *acceptStream(Listener *listener) {
 		free(ret);
 		return NULL;
 	}
+
+	int oldflags = fcntl(ret->fd, F_GETFL);
+	fcntl(ret->fd, F_SETFL, oldflags | flags);
 
 	switch (listener->type) {
 		case TCP: default:

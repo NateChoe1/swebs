@@ -34,7 +34,7 @@
 int main(int argc, char **argv) {
 	char *logout = "/var/log/swebs.log";
 	char *sitefile = NULL;
-	int processes = 8;
+	int processes = sysconf(_SC_NPROCESSORS_ONLN) + 1;
 	uint16_t port = 443;
 	int backlog = 100;
 	for (;;) {
@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
 				printf(
 "Usage: swebs [options]\n"
 "  -o [out]                  Set the log file (default: /var/log/swebs.log)\n"
-"  -j [cores]                Use that many cores (default: 8)\n"
+"  -j [cores]                Use that many cores (default: $(nproc)+1)\n"
 "  -s [site file]            Use that site file (required)\n"
 "  -p [port]                 Set the port (default: 443)\n"
 "  -b [backlog]              Set the socket backlog (default: 100)\n"
@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
 	createLog("swebs started");
 
 	for (;;) {
-		Stream *stream = acceptStream(listener);
+		Stream *stream = acceptStream(listener, O_NONBLOCK);
 		if (stream == NULL) {
 			createLog("Accepting a stream failed");
 			continue;

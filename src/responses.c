@@ -142,6 +142,7 @@ int sendResponse(Connection *conn, Sitefile *site) {
 					readResponse(conn, site->content[i].arg);
 					goto end;
 				default:
+					sendErrorResponse(conn, ERROR_500);
 					return 1;
 			}
 		}
