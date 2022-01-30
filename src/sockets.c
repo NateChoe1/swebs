@@ -17,14 +17,14 @@
 */
 #include <stdio.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <assert.h>
+#include <stdlib.h>
 
 #include <fcntl.h>
 #include <unistd.h>
 #include <netinet/in.h>
-
-#include <openssl/ssl.h>
-#include <openssl/err.h>
+#include <gnutls/gnutls.h>
 
 #include <sockets.h>
 
