@@ -54,6 +54,7 @@ static void readResponse(Connection *conn, char *path) {
 			free(assembledPath);
 			goto error;
 		}
+
 		char responsePath[PATH_MAX];
 		if (realpath(path, responsePath) == NULL) {
 			free(assembledPath);
@@ -63,6 +64,22 @@ static void readResponse(Connection *conn, char *path) {
 		if (memcmp(requestPath, responsePath, responsePathLen)) {
 			free(assembledPath);
 			goto forbidden;
+		}
+		//in theory an attacker could just request
+		// /blog/../../../../site/privatekey.pem
+		//so we make sure that the filepath is actually within the path
+		//specified by the page.
+
+		struct stat requestbuf;
+		if (stat(requestPath, &requestbuf)) {
+			free(assembledPath);
+			sendErrorResponse(conn, ERROR_404);
+			return;
+		}
+		if (S_ISDIR(requestbuf.st_mode)) {
+			free(assembledPath);
+			sendErrorResponse(conn, ERROR_400);
+			return;
 		}
 
 		file = fopen(requestPath, "r");
