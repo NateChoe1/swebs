@@ -184,7 +184,9 @@ Sitefile *parseSitefile(char *path) {
 		return NULL;
 	}
 	RequestType respondto = GET;
-	char *host = copyString("localhost");
+	const int cflags = REG_EXTENDED | REG_ICASE;
+	char *host = NULL;
+	int lasthostset = 0;
 	int argc;
 	char **argv;
 	for (;;) {
@@ -207,20 +209,13 @@ Sitefile *parseSitefile(char *path) {
 					goto error;
 			}
 			else if (strcmp(argv[1], "host") == 0) {
-				if (istrcmp(host, argv[2]) == 0)
-					goto setValue;
-				for (int i = 0; i < ret->size; i++) {
-					if (istrcmp(argv[2],
-					    ret->content[i].host) == 0) {
-						host = ret->content[i].host;
-						goto setValue;
-					}
-				}
+				if (ret->size == lasthostset)
+					free(host);
 				host = copyString(argv[2]);
+				lasthostset = ret->size;
 			}
 			else
 				goto error;
-setValue:
 			continue;
 		}
 		else if (strcmp(argv[0], "define") == 0) {
@@ -256,7 +251,7 @@ setValue:
 			goto error;
 
 		if (regcomp(&ret->content[ret->size].path, argv[1],
-		            REG_EXTENDED | REG_NOSUB))
+		            cflags))
 			goto error;
 
 		if (strcmp(argv[0], "read") == 0) {
@@ -268,7 +263,10 @@ setValue:
 			goto error;
 		freeTokens(argc, argv);
 		ret->content[ret->size].respondto = respondto;
-		ret->content[ret->size].host = host;
+		if (host == NULL)
+			regcomp(&ret->content[ret->size].host, ".*", cflags);
+		else
+			regcomp(&ret->content[ret->size].host, host, cflags);
 		ret->size++;
 	}
 error:
@@ -281,6 +279,7 @@ nterror:
 void freeSitefile(Sitefile *site) {
 	for (long i = 0; i < site->size; i++) {
 		regfree(&site->content[i].path);
+		regfree(&site->content[i].host);
 		free(site->content[i].arg);
 	}
 	free(site->content);

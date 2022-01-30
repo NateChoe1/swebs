@@ -95,6 +95,13 @@ forbidden:
 	return;
 }
 
+static int fullmatch(regex_t *regex, char *str) {
+	regmatch_t match;
+	if (regexec(regex, str, 1, &match, 0))
+		return 1;
+	return match.rm_so != 0 || match.rm_eo != strlen(str);
+}
+
 int sendResponse(Connection *conn, Sitefile *site) {
 	char *host = NULL;
 	for (int i = 0; i < conn->fieldCount; i++) {
@@ -110,10 +117,9 @@ int sendResponse(Connection *conn, Sitefile *site) {
 	for (int i = 0; i < site->size; i++) {
 		if (site->content[i].respondto != conn->type)
 			continue;
-		if (istrcmp(site->content[i].host, host))
+		if (fullmatch(&site->content[i].host, host))
 			continue;
-		if (regexec(&site->content[i].path, conn->path, 0, NULL, 0)
-		    == 0) {
+		if (fullmatch(&site->content[i].path, conn->path) == 0) {
 			switch (site->content[i].command) {
 				case READ:
 					readResponse(conn, site->content[i].arg);

@@ -27,7 +27,7 @@ typedef enum {
 
 typedef struct {
 	RequestType respondto;
-	char *host;
+	regex_t host;
 	Command command;
 	regex_t path;
 	char *arg;

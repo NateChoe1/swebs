@@ -22,7 +22,7 @@ sitefiles also allow comments with #
 * ```respondto``` - The type of http request to respond to. One of:
 	* GET (defualt)
 	* POST
-* ```host``` - The hostname to respond to. Case insensitive, default: localhost
+* ```host``` - The hostname to respond to. Case insensitive regex, default: .*
 
 # Part 4: Global variables
 
