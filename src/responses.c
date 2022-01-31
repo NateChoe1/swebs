@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -29,7 +30,7 @@
 #include <responseutil.h>
 
 static int readResponse(Connection *conn, char *path) {
-	FILE *file;
+	int fd = -1;;
 	struct stat statbuf;
 	if (stat(path, &statbuf)) {
 		sendErrorResponse(conn, ERROR_404);
@@ -82,18 +83,19 @@ static int readResponse(Connection *conn, char *path) {
 			return -1;
 		}
 
-		file = fopen(requestPath, "r");
+		fd = open(requestPath, O_RDONLY);
 		free(assembledPath);
 	}
 	else
-		file = fopen(path, "r");
-	if (file == NULL)
+		fd = open(path, O_RDONLY);
+	if (fd < 0)
 		goto forbidden;
-	fseek(file, 0, SEEK_END);
-	long len = ftell(file);
-	fseek(file, 0, SEEK_SET);
+	off_t len = lseek(fd, 0, SEEK_END);
+	if (len < 0)
+		goto error;
+	lseek(fd, 0, SEEK_SET);
 	sendHeader(conn, CODE_200, len);
-	return fileno(file);
+	return fd;
 error:
 	sendErrorResponse(conn, ERROR_500);
 	return -1;
@@ -130,9 +132,9 @@ int getResponse(Connection *conn, Sitefile *site) {
 			int fd = -1;
 			switch (site->content[i].command) {
 				case READ:
-					return
-						fd = readResponse(conn,
-							site->content[i].arg);
+					fd = readResponse(conn,
+						site->content[i].arg);
+					break;
 				default:
 					sendErrorResponse(conn, ERROR_500);
 					return 1;
