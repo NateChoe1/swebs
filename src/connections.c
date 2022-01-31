@@ -215,7 +215,6 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 				leftToSend -= writeLen;
 			}
 			conn->len -= readLen;
-			printf("%ld\n", conn->len);
 		}
 		resetConnection(conn);
 	}
