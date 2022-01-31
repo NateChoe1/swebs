@@ -13,9 +13,9 @@ work/%.o: src/%.c $(wildcard src/include/*.h)
 	$(CC) $(CFLAGS) $< -c -o $@
 
 install: build/$(OUT)
-	useradd -M swebs
 	cp build/$(OUT) $(INSTALLDIR)/$(OUT)
+	useradd -M swebs
 
 uninstall: $(INSTALLDIR)/$(OUT)
-	userdel swebs
 	rm $(INSTALLDIR)/$(OUT)
+	userdel swebs

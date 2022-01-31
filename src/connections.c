@@ -205,6 +205,8 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 			size_t readLen = read(conn->fd, buffer, sizeof(buffer));
 			if (readLen == 0)
 				break;
+			if (readLen < 0)
+				return 1;
 			size_t writeLen = sendStream(conn->stream,
 					buffer, readLen);
 			if (writeLen < readLen)
