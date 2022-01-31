@@ -93,7 +93,11 @@ static int readResponse(Connection *conn, char *path) {
 	off_t len = lseek(fd, 0, SEEK_END);
 	if (len < 0)
 		goto error;
-	lseek(fd, 0, SEEK_SET);
+	if (lseek(fd, 0, SEEK_SET) < 0) {
+		sendErrorResponse(conn, ERROR_500);
+		close(fd);
+		return -1;
+	}
 	sendHeader(conn, CODE_200, len);
 	conn->len = len;
 	return fd;
