@@ -95,6 +95,7 @@ static int readResponse(Connection *conn, char *path) {
 		goto error;
 	lseek(fd, 0, SEEK_SET);
 	sendHeader(conn, CODE_200, len);
+	conn->len = len;
 	return fd;
 error:
 	sendErrorResponse(conn, ERROR_500);

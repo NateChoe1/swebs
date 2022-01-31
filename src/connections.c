@@ -200,17 +200,19 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 	    conn->receivedBody >= conn->bodylen)
 		getResponse(conn, site);
 	if (conn->progress == SEND_RESPONSE) {
-		for (;;) {
+		while (conn->len > 0) {
 			char buffer[1024];
 			size_t readLen = read(conn->fd, buffer, sizeof(buffer));
-			if (readLen == 0)
-				break;
 			if (readLen < 0)
 				return 1;
-			size_t writeLen = sendStream(conn->stream,
-					buffer, readLen);
-			if (writeLen < readLen)
-				return 1;
+			while (readLen > 0) {
+				size_t writeLen = sendStream(conn->stream,
+						buffer, readLen);
+				if (writeLen < 0)
+					return 1;
+				readLen -= writeLen;
+			}
+			conn->len -= readLen;
 		}
 		resetConnection(conn);
 	}

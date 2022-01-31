@@ -55,7 +55,8 @@ typedef struct Connection {
 	size_t receivedBody;
 
 	int fd;
-	//the fd of the response
+	size_t len;
+	//the fd and length of the response left to send
 
 	char *currLine;
 	//persistent

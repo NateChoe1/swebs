@@ -10,5 +10,6 @@ read /blog/.* site/blog/
 #/blog/2021-1-25.html turns into site/blog//blog/2021-1-25.html
 set host 127.0.0.1:8000
 read / site/easteregg.html
+read /egg.png site/egg.png
 set host .*
 read /alldomains site/alldomains.html
