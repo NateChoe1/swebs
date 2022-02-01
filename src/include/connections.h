@@ -25,7 +25,6 @@ typedef enum {
 	RECEIVE_REQUEST,
 	RECEIVE_HEADER,
 	RECEIVE_BODY,
-	SEND_RESPONSE,
 } ConnectionSteps;
 
 typedef struct {
@@ -53,10 +52,6 @@ typedef struct Connection {
 	//ephemeral
 	size_t bodylen;
 	size_t receivedBody;
-
-	int fd;
-	size_t len;
-	//the fd and length of the response left to send
 
 	char *currLine;
 	//persistent

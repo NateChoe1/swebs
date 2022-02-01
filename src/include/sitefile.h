@@ -23,6 +23,7 @@
 
 typedef enum {
 	READ,
+	EXEC,
 } Command;
 
 typedef struct {

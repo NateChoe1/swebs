@@ -20,6 +20,6 @@
 #include <sitefile.h>
 #include <connections.h>
 
-int getResponse(Connection *conn, Sitefile *site);
+int sendResponse(Connection *conn, Sitefile *site);
 //returns 1 on error, sets conn->progress to SEND_RESPONSE and sets conn->fd
 #endif

@@ -258,6 +258,13 @@ Sitefile *parseSitefile(char *path) {
 			ret->content[ret->size].arg = copyString(argv[2]);
 			if (ret->content[ret->size].arg == NULL)
 				goto error;
+			ret->content[ret->size].command = READ;
+		}
+		else if (strcmp(argv[0], "exec") == 0) {
+			ret->content[ret->size].arg = copyString(argv[2]);
+			if (ret->content[ret->size].arg == NULL)
+				goto error;
+			ret->content[ret->size].command = EXEC;
 		}
 		else
 			goto error;
