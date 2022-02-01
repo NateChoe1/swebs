@@ -238,6 +238,7 @@ int sendResponse(Connection *conn, Sitefile *site) {
 				case EXEC:
 					execResponse(conn,
 							site->content[i].arg);
+					break;
 				default:
 					sendErrorResponse(conn, ERROR_500);
 					return 1;
