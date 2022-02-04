@@ -1,3 +1,3 @@
 #!/bin/sh
 
-../build/swebs -s sitefile -o logs -p 8000 -b 100
+../build/swebs -B -P swebs.pid -s sitefile -o logs -p 8000 -b 100

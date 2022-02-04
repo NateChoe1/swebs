@@ -21,11 +21,14 @@
 #include <string.h>
 #include <assert.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include <pwd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 
 #include <util.h>
@@ -39,8 +42,10 @@ int main(int argc, char **argv) {
 	int processes = sysconf(_SC_NPROCESSORS_ONLN) + 1;
 	uint16_t port = 443;
 	int backlog = 100;
+	bool shouldDaemonize = false;
+	char *pidfile = "/run/swebs.pid";
 	for (;;) {
-		int c = getopt(argc, argv, "o:j:s:p:b:c:hl");
+		int c = getopt(argc, argv, "o:j:s:p:b:c:BP:hl");
 		if (c == -1)
 			break;
 		switch (c) {
@@ -58,6 +63,12 @@ int main(int argc, char **argv) {
 				break;
 			case 'b':
 				backlog = atoi(optarg);
+				break;
+			case 'B':
+				shouldDaemonize = true;
+				break;
+			case 'P':
+				pidfile = optarg;
 				break;
 			case 'l':
 				printf(
@@ -82,6 +93,9 @@ int main(int argc, char **argv) {
 "  -s [site file]            Use that site file (required)\n"
 "  -p [port]                 Set the port (default: 443)\n"
 "  -b [backlog]              Set the socket backlog (default: 100)\n"
+"  -B                        Run swebs in the background and daemonize\n"
+"  -P [pidfile]              Specify PID file if daemonizing\n"
+"                              (defualt: /run/swebs.pid)\n"
 "  -l                        Show some legal details\n"
 "  -h                        Show this help message\n"
 				);
@@ -91,6 +105,7 @@ int main(int argc, char **argv) {
 				exit(EXIT_FAILURE);
 		}
 	}
+
 
 	if (sitefile == NULL) {
 		fprintf(stderr, "No sitefile configured\n");
@@ -116,6 +131,14 @@ int main(int argc, char **argv) {
 	if (listener == NULL) {
 		fprintf(stderr, "Failed to create socket\n");
 		exit(EXIT_FAILURE);
+	}
+
+	if (shouldDaemonize) {
+		if (daemon(1, 0) < 0)
+			exit(EXIT_FAILURE);
+		FILE *pid = fopen(pidfile, "w");
+		fprintf(pid, "%d\n", getpid());
+		fclose(pid);
 	}
 
 	if (initLogging(logout)) {
