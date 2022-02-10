@@ -154,7 +154,7 @@ void freeStream(Stream *stream) {
 	free(stream);
 }
 
-ssize_t sendStream(Stream *stream, void *data, size_t len) {
+ssize_t sendStream(Stream *stream, const void *data, size_t len) {
 	switch (stream->type) {
 		case TCP:
 			return write(stream->fd, data, len);

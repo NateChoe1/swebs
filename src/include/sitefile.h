@@ -24,6 +24,7 @@
 typedef enum {
 	READ,
 	EXEC,
+	THROW,
 } Command;
 
 typedef struct {

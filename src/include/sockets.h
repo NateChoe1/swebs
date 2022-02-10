@@ -50,7 +50,7 @@ Stream *acceptStream(Listener *listener, int flags);
 void freeListener(Listener *listener);
 void freeStream(Stream *stream);
 
-ssize_t sendStream(Stream *stream, void *data, size_t len);
+ssize_t sendStream(Stream *stream, const void *data, size_t len);
 ssize_t recvStream(Stream *stream, void *data, size_t len);
 //return value is the same as the read and write syscalls.
 #endif

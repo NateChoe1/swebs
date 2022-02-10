@@ -22,6 +22,7 @@
 
 #include <util.h>
 #include <sitefile.h>
+#include <responseutil.h>
 
 typedef enum {
 	SUCCESS,
@@ -156,15 +157,6 @@ error:
 	return ERROR;
 }
 
-static char *copyString(char *str) {
-	size_t len = strlen(str);
-	char *ret = malloc(len + 1);
-	if (ret == NULL)
-		return NULL;
-	memcpy(ret, str, len + 1);
-	return ret;
-}
-
 Sitefile *parseSitefile(char *path) {
 	FILE *file = fopen(path, "r");
 	if (file == NULL)
@@ -211,7 +203,7 @@ Sitefile *parseSitefile(char *path) {
 			else if (strcmp(argv[1], "host") == 0) {
 				if (ret->size == lasthostset)
 					free(host);
-				host = copyString(argv[2]);
+				host = strdup(argv[2]);
 				lasthostset = ret->size;
 			}
 			else
@@ -230,9 +222,9 @@ Sitefile *parseSitefile(char *path) {
 					goto error;
 			}
 			else if (strcmp(argv[1], "key") == 0)
-				ret->key = copyString(argv[2]);
+				ret->key = strdup(argv[2]);
 			else if (strcmp(argv[1], "cert") == 0)
-				ret->cert = copyString(argv[2]);
+				ret->cert = strdup(argv[2]);
 			else if (strcmp(argv[1], "timeout") == 0)
 				ret->timeout = atoi(argv[2]);
 			else
@@ -255,16 +247,22 @@ Sitefile *parseSitefile(char *path) {
 			goto error;
 
 		if (strcmp(argv[0], "read") == 0) {
-			ret->content[ret->size].arg = copyString(argv[2]);
+			ret->content[ret->size].arg = strdup(argv[2]);
 			if (ret->content[ret->size].arg == NULL)
 				goto error;
 			ret->content[ret->size].command = READ;
 		}
 		else if (strcmp(argv[0], "exec") == 0) {
-			ret->content[ret->size].arg = copyString(argv[2]);
+			ret->content[ret->size].arg = strdup(argv[2]);
 			if (ret->content[ret->size].arg == NULL)
 				goto error;
 			ret->content[ret->size].command = EXEC;
+		}
+		else if (strcmp(argv[0], "throw") == 0) {
+			ret->content[ret->size].arg = getCode(atoi(argv[2]));
+			if (ret->content[ret->size].arg == NULL)
+				goto error;
+			ret->content[ret->size].command = THROW;
 		}
 		else
 			goto error;

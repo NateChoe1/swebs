@@ -48,7 +48,24 @@ static int sendConnection(Connection *conn, char *format, ...) {
 	return 0;
 }
 
-int sendStringResponse(Connection *conn, char *status, char *str) {
+char *getCode(int code) {
+	switch (code) {
+		case 200:
+			return strdup(CODE_200);
+		case 400:
+			return strdup(ERROR_400);
+		case 403:
+			return strdup(ERROR_403);
+		case 404:
+			return strdup(ERROR_404);
+		case 500:
+			return strdup(ERROR_500);
+		default:
+			return NULL;
+	}
+}
+
+int sendStringResponse(Connection *conn, const char *status, char *str) {
 	return sendConnection(conn,
 		"HTTP/1.1 %s\r\n"
 		CONST_FIELDS
@@ -59,7 +76,7 @@ int sendStringResponse(Connection *conn, char *status, char *str) {
 	);
 }
 
-int sendErrorResponse(Connection *conn, char *error) {
+int sendErrorResponse(Connection *conn, const char *error) {
 	const char *template =
 		"<meta charset=utf-8>"
 		"<h1 text-align=center>"
@@ -73,7 +90,7 @@ int sendErrorResponse(Connection *conn, char *error) {
 	return ret;
 }
 
-int sendBinaryResponse(Connection *conn, char *status,
+int sendBinaryResponse(Connection *conn, const char *status,
 		void *data, size_t len) {
 	if (sendConnection(conn,
 		"HTTP/1.1 %s\r\n"
@@ -86,7 +103,7 @@ int sendBinaryResponse(Connection *conn, char *status,
 	return sendStream(conn->stream, data, len) < len;
 }
 
-int sendHeader(Connection *conn, char *status, size_t len) {
+int sendHeader(Connection *conn, const char *status, size_t len) {
 	return (sendConnection(conn,
 		"HTTP/1.1 %s\r\n"
 		CONST_FIELDS

@@ -30,14 +30,16 @@
 #include <responses.h>
 #include <responseutil.h>
 
-static int resilientSend(Stream *stream, char *buff, size_t len) {
+static int resilientSend(Stream *stream, const void *buff, size_t len) {
 //Will either write len bytes, or return 1 for error.
+	const char *data = (const char *) buff;
+	//using character pointers to do pointer arithmetic
 	while (len > 0) {
-		ssize_t sent = sendStream(stream, buff, len);
+		ssize_t sent = sendStream(stream, data, len);
 		if (sent < 0)
 			return 1;
 		len -= sent;
-		buff += sent;
+		data += sent;
 	}
 	return 0;
 }
@@ -142,7 +144,8 @@ static int execResponse(Connection *conn, char *path) {
 		close(1);
 		close(output[0]);
 		dup2(output[1], 1);
-		char **args = malloc((conn->fieldCount*2 + 2) * sizeof(char *));
+		char **args =
+			malloc((conn->fieldCount*2 + 2) * sizeof(char *));
 		if (args == NULL) {
 			close(output[1]);
 			exit(EXIT_FAILURE);
@@ -237,6 +240,10 @@ int sendResponse(Connection *conn, Sitefile *site) {
 					break;
 				case EXEC:
 					execResponse(conn,
+							site->content[i].arg);
+					break;
+				case THROW:
+					sendErrorResponse(conn,
 							site->content[i].arg);
 					break;
 				default:

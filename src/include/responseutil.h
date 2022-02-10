@@ -25,9 +25,11 @@
 #define ERROR_404 "404 Not Found"
 #define ERROR_500 "500 Internal Server Error"
 
-int sendStringResponse(Connection *conn, char *status, char *str);
-int sendBinaryResponse(Connection *conn, char *status, void *data, size_t len);
-int sendErrorResponse(Connection *conn, char *error);
+char *getCode(int code);
+int sendStringResponse(Connection *conn, const char *status, char *str);
+int sendBinaryResponse(Connection *conn, const char *status,
+		void *data, size_t len);
+int sendErrorResponse(Connection *conn, const char *error);
 //sendErrorResponse(conn, ERROR_404);
-int sendHeader(Connection *conn, char *status, size_t len);
+int sendHeader(Connection *conn, const char *status, size_t len);
 #endif
