@@ -150,7 +150,7 @@ static int execResponse(Connection *conn, char *path) {
 			close(output[1]);
 			exit(EXIT_FAILURE);
 		}
-		args[0] = path;
+		args[0] = conn->path;
 		for (int i = 0; i < conn->fieldCount; i++) {
 			args[i * 2 + 1] = conn->fields[i].field;
 			args[i * 2 + 2] = conn->fields[i].value;
