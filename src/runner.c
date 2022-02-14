@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include <poll.h>
+#include <signal.h>
 #include <unistd.h>
 
 #include <swebs/runner.h>
@@ -41,6 +42,8 @@ void *runServer(RunnerArgs *args) {
 	assert(connections != NULL);
 	fds[0].fd = notify;
 	fds[0].events = POLLIN;
+
+	signal(SIGPIPE, SIG_IGN);
 
 	for (;;) {
 		int i;
