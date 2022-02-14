@@ -15,7 +15,6 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -39,19 +38,18 @@ void *runServer(RunnerArgs *args) {
 	int allocConns = 100;
 	struct pollfd *fds = malloc(sizeof(struct pollfd) * allocConns);
 	Connection *connections = malloc(sizeof(Connection) * allocConns);
+	int connCount = 1;
+	/* connections are 1 indexed because fds[0] is the notify fd. */
 	assert(fds != NULL);
 	assert(connections != NULL);
 	fds[0].fd = notify;
 	fds[0].events = POLLIN;
-	int connCount = 1;
-	//connections are 1 indexed, this is because fds[0] is the notify fd.
 
 	for (;;) {
-		poll(fds, connCount, -1);
+		int i;
+		poll(fds, connCount, site->timeout);
 
-		for (int i = 1; i < connCount; i++) {
-			if (fds[i].revents & POLLRDHUP)
-				goto remove;
+		for (i = 1; i < connCount; i++) {
 			if (updateConnection(connections + i, site))
 				goto remove;
 			continue;
@@ -65,27 +63,30 @@ remove:
 		}
 
 		if (fds[0].revents & POLLIN) {
+			Stream *newstream;
 			if (connCount >= allocConns) {
+				struct pollfd *newfds;
+				Connection *newconns;
 				allocConns *= 2;
-				struct pollfd *newfds = realloc(fds,
+				newfds = realloc(fds,
 					sizeof(struct pollfd) * allocConns);
 				if (newfds == NULL)
 					exit(EXIT_FAILURE);
 				fds = newfds;
 
-				Connection *newconns = realloc(connections,
+				newconns = realloc(connections,
 					sizeof(Connection) * allocConns);
 				if (newconns == NULL)
 					exit(EXIT_FAILURE);
 				connections = newconns;
 			}
-			Stream *stream;
-			if (read(notify, &stream, sizeof(stream)) < sizeof(stream))
+			if (read(notify, &newstream, sizeof(newstream))
+					< sizeof(newstream))
 				exit(EXIT_FAILURE);
-			fds[connCount].fd = stream->fd;
-			fds[connCount].events = POLLIN | POLLRDHUP;
+			fds[connCount].fd = newstream->fd;
+			fds[connCount].events = POLLIN;
 
-			if (newConnection(stream, connections + connCount))
+			if (newConnection(newstream, connections + connCount))
 				exit(EXIT_FAILURE);
 			connCount++;
 			pending[id]++;

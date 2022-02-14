@@ -15,11 +15,11 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef _HAVE_RESPONSES
-#define _HAVE_RESPONSES
+#ifndef HAVE_RESPONSES
+#define HAVE_RESPONSES
 #include <sitefile.h>
 #include <connections.h>
 
 int sendResponse(Connection *conn, Sitefile *site);
-//returns 1 on error, sets conn->progress to SEND_RESPONSE and sets conn->fd
+/* returns 1 on error, sets conn->progress to SEND_RESPONSE */
 #endif

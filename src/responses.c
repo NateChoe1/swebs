@@ -30,71 +30,59 @@
 #include <responses.h>
 #include <responseutil.h>
 
-static int resilientSend(Stream *stream, const void *buff, size_t len) {
-//Will either write len bytes, or return 1 for error.
-	const char *data = (const char *) buff;
-	//using character pointers to do pointer arithmetic
-	while (len > 0) {
-		ssize_t sent = sendStream(stream, data, len);
-		if (sent < 0)
-			return 1;
-		len -= sent;
-		data += sent;
-	}
-	return 0;
-}
-
 static int readResponse(Connection *conn, char *path) {
-	int fd = 1;
+	int fd = -1;
 	struct stat statbuf;
 	if (stat(path, &statbuf)) {
-		sendErrorResponse(conn, ERROR_404);
+		sendErrorResponse(conn->stream, ERROR_404);
 		return 1;
 	}
 	if (S_ISDIR(statbuf.st_mode)) {
 		long reqPathLen = strlen(conn->path);
 		long pathLen = strlen(path);
 		char *assembledPath = malloc(reqPathLen + pathLen + 1);
+		char requestPath[PATH_MAX], responsePath[PATH_MAX];
+		size_t responsePathLen;
+		struct stat requestBuff;
 		if (assembledPath == NULL)
 			goto error;
 		memcpy(assembledPath, path, pathLen);
 		memcpy(assembledPath + pathLen, conn->path, reqPathLen + 1);
 
-		char requestPath[PATH_MAX];
 		if (realpath(assembledPath, requestPath) == NULL) {
 			if (errno == ENOENT) {
 				free(assembledPath);
-				sendErrorResponse(conn, ERROR_404);
+				sendErrorResponse(conn->stream, ERROR_404);
 				return 1;
 			}
 			free(assembledPath);
 			goto error;
 		}
 
-		char responsePath[PATH_MAX];
 		if (realpath(path, responsePath) == NULL) {
 			free(assembledPath);
 			goto error;
 		}
-		size_t responsePathLen = strlen(responsePath);
+		responsePathLen = strlen(responsePath);
 		if (memcmp(requestPath, responsePath, responsePathLen)) {
 			free(assembledPath);
 			goto forbidden;
 		}
-		//in theory an attacker could just request
-		// /blog/../../../../site/privatekey.pem
-		//so we make sure that the filepath is actually within the path
-		//specified by the page.
+		/*
+		 * in theory an attacker could just request
+		 *  /blog/../../../../site/privatekey.pem
+		 * so we make sure that the filepath is actually within the path
+		 * specified by the page.
+		 * */
 
-		struct stat requestbuf;
-		if (stat(requestPath, &requestbuf)) {
+		if (stat(requestPath, &requestBuff)) {
 			free(assembledPath);
-			sendErrorResponse(conn, ERROR_404);
+			sendErrorResponse(conn->stream, ERROR_404);
 			return 1;
 		}
-		if (S_ISDIR(requestbuf.st_mode)) {
+		if (S_ISDIR(requestBuff.st_mode)) {
 			free(assembledPath);
-			sendErrorResponse(conn, ERROR_400);
+			sendErrorResponse(conn->stream, ERROR_400);
 			return 1;
 		}
 
@@ -105,53 +93,38 @@ static int readResponse(Connection *conn, char *path) {
 		fd = open(path, O_RDONLY);
 	if (fd < 0)
 		goto forbidden;
-	off_t len = lseek(fd, 0, SEEK_END);
-	if (len < 0)
-		goto error;
-	if (lseek(fd, 0, SEEK_SET) < 0) {
-		sendErrorResponse(conn, ERROR_500);
-		close(fd);
-		return 1;
-	}
-	sendHeader(conn, CODE_200, len);
-
-	while (len > 0) {
-		char buff[1024];
-		size_t readLen = read(fd, buff, sizeof(buff));
-		if (resilientSend(conn->stream, buff, readLen))
-			goto error;
-		len -= readLen;
-	}
-
-	return 0;
+	return sendSeekableFile(conn->stream, CODE_200, fd);
 error:
-	sendErrorResponse(conn, ERROR_500);
+	sendErrorResponse(conn->stream, ERROR_500);
 	return 1;
 forbidden:
-	sendErrorResponse(conn, ERROR_403);
+	sendErrorResponse(conn->stream, ERROR_403);
 	return 1;
 }
 
 static int execResponse(Connection *conn, char *path) {
 	int output[2];
+	int status;
+	pid_t pid;
 	if (pipe(output))
 		goto error;
 
-	pid_t pid = fork();
+	pid = fork();
 	if (pid < 0)
 		goto error;
 	if (pid == 0) {
+		char **args;
+		int i;
 		close(1);
 		close(output[0]);
 		dup2(output[1], 1);
-		char **args =
-			malloc((conn->fieldCount*2 + 2) * sizeof(char *));
+		args = malloc((conn->fieldCount*2 + 2) * sizeof(char *));
 		if (args == NULL) {
 			close(output[1]);
 			exit(EXIT_FAILURE);
 		}
 		args[0] = conn->path;
-		for (int i = 0; i < conn->fieldCount; i++) {
+		for (i = 0; i < conn->fieldCount; i++) {
 			args[i * 2 + 1] = conn->fields[i].field;
 			args[i * 2 + 2] = conn->fields[i].value;
 		}
@@ -165,46 +138,17 @@ static int execResponse(Connection *conn, char *path) {
 		free(args);
 		exit(EXIT_SUCCESS);
 	}
-	size_t allocResponse = 1024;
-	size_t responseLen = 0;
-	char *response = malloc(allocResponse);
+
 	close(output[1]);
-	for (;;) {
-		if (responseLen == allocResponse) {
-			allocResponse *= 2;
-			char *newresponse = realloc(response, allocResponse);
-			if (newresponse == NULL)
-				goto looperror;
-			response = newresponse;
-		}
-		ssize_t len = read(output[0],
-				response + responseLen,
-				allocResponse - responseLen);
-		if (len < 0)
-			goto looperror;
-		if (len == 0)
-			break;
-		responseLen += len;
-		continue;
-looperror:
-		close(output[0]);
-		int status;
-		waitpid(pid, &status, 0);
-		free(response);
-		goto error;
+
+	status = sendPipe(conn->stream, CODE_200, output[0]);
+	{
+		int exitcode;
+		waitpid(pid, &exitcode, 0);
 	}
-	close(output[0]);
-	int status;
-	waitpid(pid, &status, 0);
-	sendHeader(conn, CODE_200, responseLen);
-	if (resilientSend(conn->stream, response, responseLen)) {
-		free(response);
-		return 1;
-	}
-	free(response);
-	return 0;
+	return status;
 error:
-	sendErrorResponse(conn, ERROR_500);
+	sendErrorResponse(conn->stream, ERROR_500);
 	return 1;
 }
 
@@ -217,17 +161,18 @@ static int fullmatch(regex_t *regex, char *str) {
 
 int sendResponse(Connection *conn, Sitefile *site) {
 	char *host = NULL;
-	for (int i = 0; i < conn->fieldCount; i++) {
+	int i;
+	for (i = 0; i < conn->fieldCount; i++) {
 		if (strcmp(conn->fields[i].field, "Host") == 0) {
 			host = conn->fields[i].value;
 			break;
 		}
 	}
 	if (host == NULL) {
-		sendErrorResponse(conn, ERROR_400);
+		sendErrorResponse(conn->stream, ERROR_400);
 		return 1;
 	}
-	for (int i = 0; i < site->size; i++) {
+	for (i = 0; i < site->size; i++) {
 		if (site->content[i].respondto != conn->type)
 			continue;
 		if (fullmatch(&site->content[i].host, host))
@@ -243,17 +188,18 @@ int sendResponse(Connection *conn, Sitefile *site) {
 							site->content[i].arg);
 					break;
 				case THROW:
-					sendErrorResponse(conn,
+					sendErrorResponse(conn->stream,
 							site->content[i].arg);
 					break;
 				default:
-					sendErrorResponse(conn, ERROR_500);
+					sendErrorResponse(conn->stream,
+							ERROR_500);
 					return 1;
 			}
 			resetConnection(conn);
 			return 0;
 		}
 	}
-	sendErrorResponse(conn, ERROR_404);
+	sendErrorResponse(conn->stream, ERROR_404);
 	return 1;
 }

@@ -15,8 +15,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef _HAVE_SITEFILE
-#define _HAVE_SITEFILE
+#ifndef HAVE_SITEFILE
+#define HAVE_SITEFILE
 #include <regex.h>
 
 #include <util.h>
@@ -24,7 +24,7 @@
 typedef enum {
 	READ,
 	EXEC,
-	THROW,
+	THROW
 } Command;
 
 typedef struct {

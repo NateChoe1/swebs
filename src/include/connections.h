@@ -15,8 +15,9 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef _HAVE_CONNECTIONS
-#define _HAVE_CONNECTIONS
+#ifndef HAVE_CONNECTIONS
+#define HAVE_CONNECTIONS
+
 #include <runner.h>
 #include <sockets.h>
 #include <sitefile.h>
@@ -24,7 +25,7 @@
 typedef enum {
 	RECEIVE_REQUEST,
 	RECEIVE_HEADER,
-	RECEIVE_BODY,
+	RECEIVE_BODY
 } ConnectionSteps;
 
 typedef struct {
@@ -37,38 +38,42 @@ typedef struct Connection {
 	ConnectionSteps progress;
 
 	struct timespec lastdata;
-	//the last time that data was received from this connection.
+	/* the last time that data was received from this connection. */
 
 	RequestType type;
 	char *path;
-	//ephemeral
+	/* ephemeral */
 
 	Field *fields;
-	//pointer to array of 2 pointers, persistent
+	/* pointer to array of 2 pointers, persistent */
 	size_t fieldCount;
 	size_t allocatedFields;
 
 	char *body;
-	//ephemeral
+	/* ephemeral */
 	size_t bodylen;
 	size_t receivedBody;
 
 	char *currLine;
-	//persistent
+	/* persistent */
 	size_t currLineAlloc;
 	size_t currLineLen;
 } Connection;
-//The 2 types of fields:
-//Persistent fields: Things which aren't freed after a reset, currLine, fields
-//Ephemeral fields: Things which are freed and reallocated after each new
-//request, path, body
+/*
+ * The 2 types of fields:
+ * Persistent fields: Things which aren't freed after a reset, currLine, fields
+ * Ephemeral fields: Things which are freed and reallocated after each new
+ * request, path, body
+ * */
 
 int newConnection(Stream *stream, Connection *ret);
-//returns non-zero on error. creates a new connection bound to fd
+/* returns non-zero on error. */
 void resetConnection(Connection *conn);
 void freeConnection(Connection *conn);
 int updateConnection(Connection *conn, Sitefile *site);
-//returns non-zero on error.
-//Generating a new connection and repeatedly calling updateConnection will
-//handle everything.
+/*
+ * returns non-zero on error.
+ * Generating a new connection and repeatedly calling updateConnection will
+ * handle everything.
+ * */
 #endif

@@ -28,12 +28,13 @@ typedef enum {
 	SUCCESS,
 	LINE_END,
 	FILE_END,
-	ERROR,
+	ERROR
 } ReturnCode;
-//this isn't ideal, but it's necessary to avoid namespace collisions.
+/* this isn't ideal, but it's necessary to avoid namespace collisions. */
 
 static void freeTokens(int argc, char **argv) {
-	for (int i = 0; i < argc; i++)
+	int i;
+	for (i = 0; i < argc; i++)
 		free(argv[i]);
 	free(argv);
 }
@@ -41,9 +42,11 @@ static void freeTokens(int argc, char **argv) {
 static ReturnCode getToken(FILE *file, char **ret) {
 	typedef enum {
 		QUOTED,
-		NONQUOTED,
+		NONQUOTED
 	} TokenType;
 	TokenType type;
+	size_t allocatedLen = 50;
+	size_t len;
 
 	for (;;) {
 		int c = fgetc(file);
@@ -67,19 +70,19 @@ static ReturnCode getToken(FILE *file, char **ret) {
 		}
 	}
 
-	long allocatedLen = 30;
-	long len;
 	*ret = malloc(allocatedLen);
 
 	for (len = 0;; len++) {
+		int c;
 		if (len >= allocatedLen) {
+			char *newret;
 			allocatedLen *= 2;
-			char *newret = realloc(*ret, allocatedLen);
+			newret = realloc(*ret, allocatedLen);
 			if (newret == NULL)
 				goto error;
 			*ret = newret;
 		}
-		int c = fgetc(file);
+		c = fgetc(file);
 		switch (type) {
 			case QUOTED:
 				if (c == '"')
@@ -114,22 +117,27 @@ error:
 }
 
 static ReturnCode getCommand(FILE *file, int *argcret, char ***argvret) {
-//THIS FUNCTION WILL NOT RETURN LINE_END
+/* THIS FUNCTION WILL NOT RETURN LINE_END */
+	int argc;
+	char **argv;
+	int allocatedTokens;
 	if (feof(file))
 		return FILE_END;
-	int argc = 0;
-	int allocatedTokens = 5;
-	char **argv = malloc(allocatedTokens * sizeof(char *));
+	argc = 0;
+	allocatedTokens = 5;
+	argv = malloc(allocatedTokens * sizeof(*argv));
 	for (;;) {
+		ReturnCode code;
 		if (argc >= allocatedTokens) {
+			char **newargv;
 			allocatedTokens *= 2;
-			char **newargv = realloc(argv,
+			newargv = realloc(argv,
 			      allocatedTokens * sizeof(char *));
 			if (newargv == NULL)
 				goto error;
 			argv = newargv;
 		}
-		ReturnCode code = getToken(file, argv + argc);
+		code = getToken(file, argv + argc);
 
 		switch (code) {
 			case ERROR:
@@ -137,8 +145,8 @@ static ReturnCode getCommand(FILE *file, int *argcret, char ***argvret) {
 			case LINE_END:
 				if (argc == 0)
 					continue;
-				//We allow empty lines
-				//fallthrough
+				/* We allow empty lines */
+				/* fallthrough */
 			case FILE_END:
 				if (argc == 0) {
 					free(argv);
@@ -159,28 +167,29 @@ error:
 
 Sitefile *parseSitefile(char *path) {
 	FILE *file = fopen(path, "r");
+	RequestType respondto = GET;
+	const int cflags = REG_EXTENDED | REG_ICASE;
+	char *host = NULL;
+	int argc;
+	char **argv;
+	int allocatedLength = 50;
+	Sitefile *ret;
+
 	if (file == NULL)
 		return NULL;
-	Sitefile *ret = malloc(sizeof(Sitefile));
+	ret = malloc(sizeof(Sitefile));
 	if (ret == NULL)
 		return NULL;
 	ret->type = TCP;
 	ret->key = NULL;
 	ret->cert = NULL;
 	ret->timeout = 0;
-	int allocatedLength = 50;
 	ret->size = 0;
 	ret->content = malloc(allocatedLength * sizeof(SiteCommand));
 	if (ret->content == NULL) {
 		free(ret);
 		return NULL;
 	}
-	RequestType respondto = GET;
-	const int cflags = REG_EXTENDED | REG_ICASE;
-	char *host = NULL;
-	int lasthostset = 0;
-	int argc;
-	char **argv;
 	for (;;) {
 		ReturnCode status = getCommand(file, &argc, &argv);
 		switch (status) {
@@ -200,12 +209,8 @@ Sitefile *parseSitefile(char *path) {
 				if (respondto == INVALID)
 					goto error;
 			}
-			else if (strcmp(argv[1], "host") == 0) {
-				if (ret->size == lasthostset)
-					free(host);
+			else if (strcmp(argv[1], "host") == 0)
 				host = strdup(argv[2]);
-				lasthostset = ret->size;
-			}
 			else
 				goto error;
 			continue;
@@ -232,8 +237,9 @@ Sitefile *parseSitefile(char *path) {
 			continue;
 		}
 		if (ret->size >= allocatedLength) {
+			SiteCommand *newcontent;
 			allocatedLength *= 2;
-			SiteCommand *newcontent = realloc(ret->content,
+			newcontent = realloc(ret->content,
 					allocatedLength * sizeof(SiteCommand));
 			if (newcontent == NULL)
 				goto error;
@@ -282,7 +288,8 @@ nterror:
 }
 
 void freeSitefile(Sitefile *site) {
-	for (long i = 0; i < site->size; i++) {
+	long i;
+	for (i = 0; i < site->size; i++) {
 		regfree(&site->content[i].path);
 		regfree(&site->content[i].host);
 		free(site->content[i].arg);

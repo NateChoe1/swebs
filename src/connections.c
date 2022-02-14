@@ -33,6 +33,8 @@
 #include <connections.h>
 
 int newConnection(Stream *stream, Connection *ret) {
+	struct timespec currentTime;
+
 	ret->stream = stream;
 	ret->progress = RECEIVE_REQUEST;
 
@@ -51,10 +53,11 @@ int newConnection(Stream *stream, Connection *ret) {
 
 	ret->path = NULL;
 	ret->body = NULL;
-	//pointers to things that are allocated within functions should be
-	//initialized to NULL so that free() doens't fail.
+	/*
+	 * pointers to things that are allocated within functions should be
+	 * initialized to NULL so that free() doens't fail.
+	 * */
 
-	struct timespec currentTime;
 	if (clock_gettime(CLOCK_MONOTONIC, &currentTime) < 0) {
 		free(ret->currLine);
 		return 1;
@@ -81,8 +84,15 @@ void freeConnection(Connection *conn) {
 }
 
 static int processRequest(Connection *conn) {
-	char *line = conn->currLine;
-	for (int i = 0;; i++) {
+	char *line;
+	long i;
+
+	line = conn->currLine;
+	/*
+	 * line is not necessarily always conn->currentLine. It's the beginning
+	 * of the currently parsing thing.
+	 * */
+	for (i = 0;; i++) {
 		if (line[i] == ' ') {
 			line[i] = '\0';
 			conn->type = getType(line);
@@ -95,7 +105,7 @@ static int processRequest(Connection *conn) {
 			return 1;
 		}
 	}
-	for (int i = 0;; i++) {
+	for (i = 0;; i++) {
 		if (line[i] == ' ') {
 			line[i] = '\0';
 			conn->path = malloc(i + 1);
@@ -118,10 +128,14 @@ static int processRequest(Connection *conn) {
 }
 
 static int processField(Connection *conn) {
+	long i;
+	char *line, *split, *field, *value;
+	size_t linelen;
+	Field *newfields;
 	if (conn->currLineLen == 0) {
 		conn->progress = RECEIVE_BODY;
 		conn->bodylen = 0;
-		for (size_t i = 0; i < conn->fieldCount; i++) {
+		for (i = 0; i < conn->fieldCount; i++) {
 			if (strcmp(conn->fields[i].field,
 			           "Content-Length") == 0)
 				conn->bodylen = atol(conn->fields[i].value);
@@ -135,26 +149,26 @@ static int processField(Connection *conn) {
 
 	if (conn->fieldCount >= conn->allocatedFields) {
 		conn->allocatedFields *= 2;
-		Field *newfields = realloc(conn->fields, conn->allocatedFields *
+		newfields = realloc(conn->fields, conn->allocatedFields *
 		                                sizeof(char *[2]));
 		if (newfields == NULL)
 			return 1;
 		conn->fields = newfields;
 	}
 
-	char *line = conn->currLine;
-	char *split = strstr(line, ": ");
-	size_t linelen = conn->currLineLen;
+	line = conn->currLine;
+	split = strstr(line, ": ");
+	linelen = conn->currLineLen;
 	if (split == NULL)
 		return 1;
 
-	char *field = malloc(split - line + 1);
+	field = malloc(split - line + 1);
 	memcpy(field, line, split - line);
 	field[split - line] = '\0';
 
 	linelen -= split - line + 2;
 	line += split - line + 2;
-	char *value = malloc(linelen + 1);
+	value = malloc(linelen + 1);
 	memcpy(value, line, linelen + 1);
 
 	conn->fields[conn->fieldCount].field = field;
@@ -168,8 +182,9 @@ static int processField(Connection *conn) {
 static int processChar(Connection *conn, char c, Sitefile *site) {
 	if (conn->progress < RECEIVE_BODY) {
 		if (conn->currLineLen >= conn->currLineAlloc) {
+			char *newline;
 			conn->currLineAlloc *= 2;
-			char *newline = realloc(conn->currLine,
+			newline = realloc(conn->currLine,
 			                        conn->currLineAlloc);
 			assert(newline != NULL);
 			conn->currLine = newline;
@@ -203,26 +218,29 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 }
 
 static long diff(struct timespec *t1, struct timespec *t2) {
+/* returns the difference in times in milliseconds */
 	return (t2->tv_sec - t1->tv_sec) * 1000 +
 		(t2->tv_nsec - t1->tv_nsec) / 1000000;
 }
 
 int updateConnection(Connection *conn, Sitefile *site) {
-	char buff[300];
 	for (;;) {
+		char buff[300];
+		ssize_t received;
+		unsigned long i;
 		struct timespec currentTime;
 		if (clock_gettime(CLOCK_MONOTONIC, &currentTime) < 0)
 			return 1;
 		if (site->timeout > 0 &&
 		    diff(&conn->lastdata, &currentTime) > site->timeout)
 			return 1;
-		ssize_t received = recvStream(conn->stream, buff, sizeof(buff));
+		received = recvStream(conn->stream, buff, sizeof(buff));
 		if (received < 0)
 			return errno != EAGAIN;
 		if (received == 0)
 			return 0;
 		memcpy(&conn->lastdata, &currentTime, sizeof(struct timespec));
-		for (unsigned long i = 0; i < received; i++) {
+		for (i = 0; i < received; i++) {
 			if (processChar(conn, buff[i], site))
 				return 1;
 		}

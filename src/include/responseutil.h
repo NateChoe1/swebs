@@ -15,8 +15,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef _HAVE_RESPONSE_UTIL
-#define _HAVE_RESPONSE_UTIL
+#ifndef HAVE_RESPONSE_UTIL
+#define HAVE_RESPONSE_UTIL
 #include <connections.h>
 
 #define CODE_200  "200 OK"
@@ -26,10 +26,12 @@
 #define ERROR_500 "500 Internal Server Error"
 
 char *getCode(int code);
-int sendStringResponse(Connection *conn, const char *status, char *str);
-int sendBinaryResponse(Connection *conn, const char *status,
+int sendStringResponse(Stream *stream, const char *status, char *str);
+int sendBinaryResponse(Stream *stream, const char *status,
 		void *data, size_t len);
-int sendErrorResponse(Connection *conn, const char *error);
-//sendErrorResponse(conn, ERROR_404);
-int sendHeader(Connection *conn, const char *status, size_t len);
+int sendErrorResponse(Stream *stream, const char *error);
+/* sendErrorResponse(conn, ERROR_404); */
+int sendHeader(Stream *stream, const char *status, size_t len);
+int sendSeekableFile(Stream *stream, const char *status, int fd);
+int sendPipe(Stream *stream, const char *status, int fd);
 #endif

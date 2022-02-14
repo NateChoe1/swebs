@@ -22,17 +22,35 @@
 #include <string.h>
 #include <limits.h>
 
+#include <unistd.h>
 #include <sys/stat.h>
 
 #include <responseutil.h>
 
 #define CONST_FIELDS "Server: swebs/0.1\r\n"
 
-static int sendConnection(Connection *conn, char *format, ...) {
+static int resilientSend(Stream *stream, void *data, size_t len) {
+	char *buffer = (char *) data;
+	size_t left = len;
+	while (left) {
+		ssize_t sent = sendStream(stream, buffer, left);
+		if (sent < 0)
+			return 1;
+		if (sent == 0)
+			break;
+		buffer += sent;
+		left -= sent;
+	}
+	return left != 0;
+}
+
+static int sendStreamValist(Stream *stream, char *format, ...) {
 	va_list ap;
+	int len;
+	char *data;
 	va_start(ap, format);
-	int len = vsnprintf(NULL, 0, format, ap);
-	char *data = malloc(len + 1);
+	len = vsnprintf(NULL, 0, format, ap);
+	data = malloc(len + 1);
 	if (data == NULL)
 		return 1;
 
@@ -40,7 +58,7 @@ static int sendConnection(Connection *conn, char *format, ...) {
 	va_start(ap, format);
 
 	vsprintf(data, format, ap);
-	if (sendStream(conn->stream, data, len) < len) {
+	if (resilientSend(stream, data, len) < len) {
 		free(data);
 		return 1;
 	}
@@ -65,8 +83,8 @@ char *getCode(int code) {
 	}
 }
 
-int sendStringResponse(Connection *conn, const char *status, char *str) {
-	return sendConnection(conn,
+int sendStringResponse(Stream *stream, const char *status, char *str) {
+	return sendStreamValist(stream,
 		"HTTP/1.1 %s\r\n"
 		CONST_FIELDS
 		"Content-Length: %lu\r\n"
@@ -76,38 +94,89 @@ int sendStringResponse(Connection *conn, const char *status, char *str) {
 	);
 }
 
-int sendErrorResponse(Connection *conn, const char *error) {
+int sendErrorResponse(Stream *stream, const char *error) {
 	const char *template =
 		"<meta charset=utf-8>"
 		"<h1 text-align=center>"
 		  "%s"
 		"</h1>";
+	int ret;
 	int len = snprintf(NULL, 0, template, error);
 	char *response = malloc(len + 1);
 	sprintf(response, template, error);
-	int ret = sendStringResponse(conn, error, response);
+	ret = sendStringResponse(stream, error, response);
 	free(response);
 	return ret;
 }
 
-int sendBinaryResponse(Connection *conn, const char *status,
+int sendBinaryResponse(Stream *stream, const char *status,
 		void *data, size_t len) {
-	if (sendConnection(conn,
-		"HTTP/1.1 %s\r\n"
-		CONST_FIELDS
-		"Content-Length: %lu\r\n"
-		"\r\n"
-		, status, len)
-	)
+	if (sendHeader(stream, status, len))
 		return 1;
-	return sendStream(conn->stream, data, len) < len;
+	return resilientSend(stream, data, len);
 }
 
-int sendHeader(Connection *conn, const char *status, size_t len) {
-	return (sendConnection(conn,
+int sendHeader(Stream *stream, const char *status, size_t len) {
+	return (sendStreamValist(stream,
 		"HTTP/1.1 %s\r\n"
 		CONST_FIELDS
 		"Content-Length: %lu\r\n"
 		"\r\n"
 		, status, len));
+}
+
+int sendSeekableFile(Stream *stream, const char *status, int fd) {
+	off_t len;
+	size_t totalSent = 0;
+	len = lseek(fd, 0, SEEK_END);
+	lseek(fd, 0, SEEK_SET);
+	sendHeader(stream, status, len);
+	for (;;) {
+		char buffer[1024];
+		ssize_t inBuffer = read(fd, buffer, sizeof(buffer));
+		if (inBuffer < 0)
+			return 1;
+		if (inBuffer == 0)
+			return totalSent != len;
+		if (resilientSend(stream, buffer, inBuffer))
+			return 1;;
+	}
+}
+
+int sendPipe(Stream *stream, const char *status, int fd) {
+	size_t allocResponse = 1024;
+	size_t responseLen = 0;
+	char *response = malloc(allocResponse);
+	for (;;) {
+		ssize_t len;
+		if (responseLen >= allocResponse) {
+			char *newresponse;
+			allocResponse *= 2;
+			newresponse = realloc(response, allocResponse);
+			if (newresponse == NULL)
+				goto error;
+			response = newresponse;
+		}
+		len = read(fd,
+			response + responseLen,
+			allocResponse - responseLen);
+		if (len < 0)
+			goto error;
+		else if (len == 0)
+			break;
+		responseLen += len;
+	}
+	close(fd);
+	sendHeader(stream, CODE_200, responseLen);
+	if (resilientSend(stream, response, responseLen)) {
+		free(response);
+		return 1;
+	}
+	free(response);
+	return 0;
+error:
+	close(fd);
+	free(response);
+	sendErrorResponse(stream, ERROR_500);
+	return 1;
 }

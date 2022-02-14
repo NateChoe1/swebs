@@ -23,6 +23,7 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
 #include <gnutls/gnutls.h>
 
@@ -35,6 +36,7 @@ int initTLS() {
 
 Listener *createListener(SocketType type, uint16_t port, int backlog, ...) {
 	Listener *ret = malloc(sizeof(Listener));
+	va_list ap;
 	if (ret == NULL)
 		return NULL;
 	ret->type = type;
@@ -43,11 +45,13 @@ Listener *createListener(SocketType type, uint16_t port, int backlog, ...) {
 		free(ret);
 		return NULL;
 	}
-	int opt = 1;
-	if (setsockopt(ret->fd, SOL_SOCKET,
-	               SO_REUSEPORT,
-	               &opt, sizeof(opt)) < 0) {
-		goto error;
+	{
+		int opt = 1;
+		if (setsockopt(ret->fd, SOL_SOCKET, SO_REUSEADDR,
+					&opt, sizeof(opt))) {
+			free(ret);
+			return NULL;
+		}
 	}
 	ret->addr.sin_family = AF_INET;
 	ret->addr.sin_addr.s_addr = INADDR_ANY;
@@ -58,7 +62,6 @@ Listener *createListener(SocketType type, uint16_t port, int backlog, ...) {
 	if (listen(ret->fd, backlog) < 0)
 		goto error;
 
-	va_list ap;
 	va_start(ap, backlog);
 	switch (type) {
 		case TCP: default:
@@ -104,8 +107,10 @@ Stream *acceptStream(Listener *listener, int flags) {
 		return NULL;
 	}
 
-	int oldflags = fcntl(ret->fd, F_GETFL);
-	fcntl(ret->fd, F_SETFL, oldflags | flags);
+	{
+		int oldflags = fcntl(ret->fd, F_GETFL);
+		fcntl(ret->fd, F_SETFL, oldflags | flags);
+	}
 
 	switch (listener->type) {
 		case TCP: default:

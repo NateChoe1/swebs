@@ -15,8 +15,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef _HAVE_SOCKETS
-#define _HAVE_SOCKETS
+#ifndef HAVE_SOCKETS
+#define HAVE_SOCKETS
 #include <stddef.h>
 
 #include <netinet/in.h>
@@ -41,16 +41,18 @@ typedef struct {
 
 int initTLS();
 Listener *createListener(SocketType type, uint16_t port, int backlog, ...);
-//extra arguments depend on type (similar to fcntl):
-//tcp: (void)
-//tls: (char *keyfile, char *certfile, char *ocspfile)
+/*
+ * extra arguments depend on type (similar to fcntl):
+ * tcp: (void)
+ * tls: (char *keyfile, char *certfile, char *ocspfile)
+ * */
 Stream *acceptStream(Listener *listener, int flags);
-//returns 1 on error, accepts fcntl flags
+/* returns 1 on error, accepts fcntl flags */
 
 void freeListener(Listener *listener);
 void freeStream(Stream *stream);
 
 ssize_t sendStream(Stream *stream, const void *data, size_t len);
 ssize_t recvStream(Stream *stream, void *data, size_t len);
-//return value is the same as the read and write syscalls.
+/* return value is the same as the read and write syscalls. */
 #endif

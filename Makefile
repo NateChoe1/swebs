@@ -1,7 +1,7 @@
 SRC = $(wildcard src/*.c)
 OBJ = $(subst .c,.o,$(subst src,work,$(SRC)))
 LIBS = -pthread -pie -lrt $(shell pkg-config --libs gnutls)
-CFLAGS := -O2 -pipe -Wall -Wpedantic -Werror
+CFLAGS := -O2 -pipe -Wall -Wpedantic -Werror -ansi -D_POSIX_C_SOURCE=200809L
 CFLAGS += -Isrc/include -fpie $(shell pkg-config --cflags gnutls)
 INSTALLDIR := /usr/sbin
 OUT = swebs

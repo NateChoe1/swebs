@@ -32,8 +32,9 @@ int initLogging(char *path) {
 
 int createLog(char *msg) {
 	time_t currenttime;
+	struct tm *timeinfo;
 	time(&currenttime);
-	struct tm *timeinfo = gmtime(&currenttime);
+	timeinfo = gmtime(&currenttime);
 	if (timeinfo == NULL)
 		return 1;
 	fprintf(logs, "[%d-%02d-%02dT%02d:%02d:%02dZ] %s\n",
@@ -49,7 +50,8 @@ int createLog(char *msg) {
 }
 
 int istrcmp(char *s1, char *s2) {
-	for (int i = 0;; i++) {
+	int i;
+	for (i = 0;; i++) {
 		char c1 = tolower(s1[i]);
 		char c2 = tolower(s2[i]);
 		if (c1 != c2)
@@ -60,10 +62,12 @@ int istrcmp(char *s1, char *s2) {
 }
 
 RequestType getType(char *str) {
+	uint64_t type;
+	int i;
 	if (strlen(str) >= 8)
 		return INVALID;
-	uint64_t type = 0;
-	for (int i = 0; str[i]; i++) {
+	type = 0;
+	for (i = 0; str[i]; i++) {
 		type <<= 8;
 		type |= str[i];
 	}
@@ -85,6 +89,8 @@ RequestType getType(char *str) {
 		default:
 			return INVALID;
 	}
-	//This would actually be far nicer in HolyC of all languages. I feel
-	//like the context immediately following each magic number is enough.
+	/*
+	 * This would actually be far nicer in HolyC of all languages. I feel
+	 * like the context immediately following each magic number is enough.
+	 * */
 }

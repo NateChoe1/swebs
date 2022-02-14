@@ -15,8 +15,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef _HAVE_RUNNER
-#define _HAVE_RUNNER
+#ifndef HAVE_RUNNER
+#define HAVE_RUNNER
 #include <sys/socket.h>
 
 #include <sitefile.h>
@@ -25,16 +25,18 @@
 typedef struct {
 	Sitefile *site;
 	int *pending;
-	//pending[thread id] = the number of connections being handled by that
-	//   thread
+	/*
+	 * pending[thread id] = the number of connections being handled by that
+	 * thread
+	 * */
 	int notify;
 	/*
 	 * When this runner should accept a connection, notify will contain an
 	 * int ready to be read.
-	 */
+	 * */
 	int id;
 } RunnerArgs;
-//my least favourite anti pattern
+/* my least favourite anti pattern */
 
 void *runServer(RunnerArgs *args);
 #endif

@@ -15,11 +15,11 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef _HAVE_UTIL
-#define _HAVE_UTIL
+#ifndef HAVE_UTIL
+#define HAVE_UTIL
 typedef enum {
 	TCP,
-	TLS,
+	TLS
 } SocketType;
 
 typedef enum {
@@ -30,14 +30,16 @@ typedef enum {
 	DELETE,
 	PATCH,
 	OPTIONS,
-	INVALID,
-	//this indicates an invalid type of request, there is no request called
-	//INVALID in HTTP/1.1.
+	INVALID
+	/*
+	 * this indicates an invalid type of request, there is no request called
+	 * INVALID in HTTP/1.1.
+	 * */
 } RequestType;
 
 int initLogging(char *path);
 int createLog(char *msg);
 int istrcmp(char *s1, char *s2);
-//case insensitive strcmp
+/* case insensitive strcmp */
 RequestType getType(char *str);
 #endif
