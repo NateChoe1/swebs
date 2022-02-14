@@ -51,6 +51,8 @@ typedef struct {
 	Field *fields;
 	char *path;
 	RequestType type;
+	void *body;
+	size_t bodylen;
 } Request;
 
 typedef enum {

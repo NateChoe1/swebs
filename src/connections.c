@@ -133,7 +133,7 @@ static int processField(Connection *conn) {
 			           "Content-Length") == 0)
 				conn->bodylen = atol(conn->fields[i].value);
 		}
-		conn->body = malloc(conn->bodylen + 1);
+		conn->body = malloc(conn->bodylen);
 		if (conn->body == NULL)
 			return 1;
 		conn->receivedBody = 0;
