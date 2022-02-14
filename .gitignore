@@ -2,3 +2,4 @@ work/*.o
 build/swebs
 example/logs
 example/swebs.pid
+example/library.so

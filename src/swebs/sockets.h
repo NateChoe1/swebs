@@ -22,7 +22,7 @@
 #include <netinet/in.h>
 #include <gnutls/gnutls.h>
 
-#include <util.h>
+#include <swebs/types.h>
 
 typedef struct {
 	SocketType type;

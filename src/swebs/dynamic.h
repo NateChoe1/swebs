@@ -15,35 +15,11 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef HAVE_SITEFILE
-#define HAVE_SITEFILE
-#include <regex.h>
+#ifndef HAVE_DYNAMIC
+#define HAVE_DYNAMIC
 
-#include <util.h>
+#include <swebs/types.h>
 
-typedef enum {
-	READ,
-	EXEC,
-	THROW
-} Command;
-
-typedef struct {
-	RequestType respondto;
-	regex_t host;
-	Command command;
-	regex_t path;
-	char *arg;
-} SiteCommand;
-
-typedef struct {
-	int size;
-	SiteCommand *content;
-	SocketType type;
-	char *key;
-	char *cert;
-	int timeout;
-} Sitefile;
-
-Sitefile *parseSitefile(char *path);
-void freeSitefile(Sitefile *site);
+int (*loadGetResponse(char *))(Request *, Response *);
+/* It takes the name of the library and returns getResponse() */
 #endif

@@ -15,11 +15,42 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef HAVE_RESPONSES
-#define HAVE_RESPONSES
-#include <sitefile.h>
-#include <connections.h>
+#ifndef HAVE_SITEFILE
+#define HAVE_SITEFILE
+#include <regex.h>
+#include <stdint.h>
 
-int sendResponse(Connection *conn, Sitefile *site);
-/* returns 1 on error, sets conn->progress to SEND_RESPONSE */
+#include <swebs/types.h>
+#include <swebs/config.h>
+
+typedef enum {
+	READ,
+	EXEC,
+	THROW,
+	LINKED
+} Command;
+
+typedef struct {
+	RequestType respondto;
+	regex_t host;
+	Command command;
+	regex_t path;
+	char *arg;
+} SiteCommand;
+
+typedef struct {
+	int size;
+	SiteCommand *content;
+	SocketType type;
+	char *key;
+	char *cert;
+	int timeout;
+	uint16_t port;
+#if DYNAMIC_LINKED_PAGES
+	int (*getResponse)(Request *, Response *);
+#endif
+} Sitefile;
+
+Sitefile *parseSitefile(char *path);
+void freeSitefile(Sitefile *site);
 #endif

@@ -22,7 +22,7 @@
 
 #include <unistd.h>
 
-#include <responseutil.h>
+#include <swebs/responseutil.h>
 
 #define CONST_FIELDS "Server: swebs/0.1\r\n"
 
@@ -55,7 +55,7 @@ static int sendStreamValist(Stream *stream, char *format, ...) {
 	va_start(ap, format);
 
 	vsprintf(data, format, ap);
-	if (resilientSend(stream, data, len) < len) {
+	if (resilientSend(stream, data, len)) {
 		free(data);
 		return 1;
 	}
@@ -124,20 +124,9 @@ int sendHeader(Stream *stream, const char *status, size_t len) {
 
 int sendSeekableFile(Stream *stream, const char *status, int fd) {
 	off_t len;
-	size_t totalSent = 0;
 	len = lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
-	sendHeader(stream, status, len);
-	for (;;) {
-		char buffer[1024];
-		ssize_t inBuffer = read(fd, buffer, sizeof(buffer));
-		if (inBuffer < 0)
-			return 1;
-		if (inBuffer == 0)
-			return totalSent != len;
-		if (resilientSend(stream, buffer, inBuffer))
-			return 1;;
-	}
+	return sendKnownPipe(stream, status, fd, len);
 }
 
 int sendPipe(Stream *stream, const char *status, int fd) {
@@ -176,4 +165,19 @@ error:
 	free(response);
 	sendErrorResponse(stream, ERROR_500);
 	return 1;
+}
+
+int sendKnownPipe(Stream *stream, const char *status, int fd, size_t len) {
+	size_t totalSent = 0;
+	sendHeader(stream, status, len);
+	for (;;) {
+		char buffer[1024];
+		ssize_t inBuffer = read(fd, buffer, sizeof(buffer));
+		if (inBuffer < 0)
+			return 1;
+		if (inBuffer == 0)
+			return totalSent != len;
+		if (resilientSend(stream, buffer, inBuffer))
+			return 1;
+	}
 }

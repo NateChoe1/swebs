@@ -21,7 +21,8 @@
 #include <string.h>
 #include <stdint.h>
 
-#include <util.h>
+#include <swebs/util.h>
+#include <swebs/types.h>
 
 static FILE *logs;
 

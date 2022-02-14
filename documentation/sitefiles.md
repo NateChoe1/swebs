@@ -28,9 +28,11 @@ sitefiles also allow comments with #
 
 # Part 4: Global variables
 
+* ```port``` - the port to use. Note that this is a global variable, and so one instance of swebs cannot use multiple ports.
 * ```transport``` - the type of connection to use. One of:
 	* TCP (default)
 	* TLS
 * ```key``` - The filepath of the private key to use if transport == TLS
 * ```cert``` - The filepath of the certificate to use if transport == TLS
 * ```timeout``` - The amount of time to wait for data before closing the connection in ms
+* ```library``` - the path of a library that is linked in during runtime if ```DYNAMIC_LINKED_PAGES```is set.

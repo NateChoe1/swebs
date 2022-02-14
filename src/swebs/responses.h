@@ -15,31 +15,11 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef HAVE_UTIL
-#define HAVE_UTIL
-typedef enum {
-	TCP,
-	TLS
-} SocketType;
+#ifndef HAVE_RESPONSES
+#define HAVE_RESPONSES
+#include <swebs/sitefile.h>
+#include <swebs/connections.h>
 
-typedef enum {
-	GET,
-	POST,
-	PUT,
-	HEAD,
-	DELETE,
-	PATCH,
-	OPTIONS,
-	INVALID
-	/*
-	 * this indicates an invalid type of request, there is no request called
-	 * INVALID in HTTP/1.1.
-	 * */
-} RequestType;
-
-int initLogging(char *path);
-int createLog(char *msg);
-int istrcmp(char *s1, char *s2);
-/* case insensitive strcmp */
-RequestType getType(char *str);
+int sendResponse(Connection *conn, Sitefile *site);
+/* returns 1 on error, sets conn->progress to SEND_RESPONSE */
 #endif

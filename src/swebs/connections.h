@@ -18,20 +18,15 @@
 #ifndef HAVE_CONNECTIONS
 #define HAVE_CONNECTIONS
 
-#include <runner.h>
-#include <sockets.h>
-#include <sitefile.h>
+#include <swebs/runner.h>
+#include <swebs/sockets.h>
+#include <swebs/sitefile.h>
 
 typedef enum {
 	RECEIVE_REQUEST,
 	RECEIVE_HEADER,
 	RECEIVE_BODY
 } ConnectionSteps;
-
-typedef struct {
-	char *field;
-	char *value;
-} Field;
 
 typedef struct Connection {
 	Stream *stream;

@@ -22,9 +22,9 @@
 #include <poll.h>
 #include <unistd.h>
 
-#include <runner.h>
-#include <sitefile.h>
-#include <connections.h>
+#include <swebs/runner.h>
+#include <swebs/sitefile.h>
+#include <swebs/connections.h>
 
 void *runServer(RunnerArgs *args) {
 	Sitefile *site = args->site;

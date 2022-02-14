@@ -24,10 +24,10 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#include <util.h>
-#include <runner.h>
-#include <sockets.h>
-#include <sitefile.h>
+#include <swebs/util.h>
+#include <swebs/runner.h>
+#include <swebs/sockets.h>
+#include <swebs/sitefile.h>
 
 static void daemonize(char *pidfile) {
 	pid_t pid;
@@ -66,7 +66,6 @@ int main(int argc, char **argv) {
 	char *logout = "/var/log/swebs.log";
 	char *sitefile = NULL;
 	int processes = sysconf(_SC_NPROCESSORS_ONLN) + 1;
-	uint16_t port = 443;
 	int backlog = 100;
 	char shouldDaemonize = 0;
 	char *pidfile = "/run/swebs.pid";
@@ -79,7 +78,7 @@ int main(int argc, char **argv) {
 
 	int i;
 	for (;;) {
-		int c = getopt(argc, argv, "o:j:s:p:b:c:BP:hl");
+		int c = getopt(argc, argv, "o:j:s:b:c:Bp:hl");
 		if (c == -1)
 			break;
 		switch (c) {
@@ -92,16 +91,13 @@ int main(int argc, char **argv) {
 			case 's':
 				sitefile = optarg;
 				break;
-			case 'p':
-				port = atoi(optarg);
-				break;
 			case 'b':
 				backlog = atoi(optarg);
 				break;
 			case 'B':
 				shouldDaemonize = 1;
 				break;
-			case 'P':
+			case 'p':
 				pidfile = optarg;
 				break;
 			case 'l':
@@ -126,10 +122,9 @@ NULL
 "  -o [out]                  Set the log file (default: /var/log/swebs.log)",
 "  -j [cores]                Use that many cores (default: $(nproc)+1)",
 "  -s [site file]            Use that site file (required)",
-"  -p [port]                 Set the port (default: 443)",
 "  -b [backlog]              Set the socket backlog (default: 100)",
 "  -B                        Run swebs in the background and daemonize",
-"  -P [pidfile]              Specify PID file if daemonizing",
+"  -p [pidfile]              Specify PID file if daemonizing",
 "                              (defualt: /run/swebs.pid)",
 "  -l                        Show some legal details",
 "  -h                        Show this help message",
@@ -155,11 +150,11 @@ NULL
 
 	switch (site->type) {
 		case TCP: default:
-			listener = createListener(TCP, port, backlog);
+			listener = createListener(TCP, site->port, backlog);
 			break;
 		case TLS:
 			initTLS();
-			listener = createListener(TLS, port, backlog,
+			listener = createListener(TLS, site->port, backlog,
 					site->key, site->cert);
 			break;
 	}

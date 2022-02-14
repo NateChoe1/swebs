@@ -19,11 +19,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <util.h>
-#include <runner.h>
-#include <sitefile.h>
-#include <responses.h>
-#include <connections.h>
+#include <swebs/util.h>
+#include <swebs/runner.h>
+#include <swebs/sitefile.h>
+#include <swebs/responses.h>
+#include <swebs/connections.h>
 
 int newConnection(Stream *stream, Connection *ret) {
 	struct timespec currentTime;

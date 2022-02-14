@@ -15,23 +15,28 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#ifndef HAVE_RESPONSE_UTIL
-#define HAVE_RESPONSE_UTIL
-#include <connections.h>
 
-#define CODE_200  "200 OK"
-#define ERROR_400 "400 Bad Request"
-#define ERROR_403 "403 Forbidden"
-#define ERROR_404 "404 Not Found"
-#define ERROR_500 "500 Internal Server Error"
 
-char *getCode(int code);
-int sendStringResponse(Stream *stream, const char *status, char *str);
-int sendBinaryResponse(Stream *stream, const char *status,
-		void *data, size_t len);
-int sendErrorResponse(Stream *stream, const char *error);
-/* sendErrorResponse(conn, ERROR_404); */
-int sendHeader(Stream *stream, const char *status, size_t len);
-int sendSeekableFile(Stream *stream, const char *status, int fd);
-int sendPipe(Stream *stream, const char *status, int fd);
+#include <swebs/config.h>
+#if DYNAMIC_LINKED_PAGES
+#include <dlfcn.h>
+#include <swebs/dynamic.h>
+
+int (*loadGetResponse(char *library))(Request *, Response *) {
+	void *handle = dlopen(library, RTLD_LAZY);
+	int (*ret)(Request *, Response *);
+
+	*(void **) &ret = dlsym(handle, "getResponse");
+	/* Dirty hack to make this code ANSI C compliant*/
+	return ret;
+}
+#else
+#include <stdlib.h>
+
+#include <swebs/types.h>
+
+int (*loadGetResponse(char *library))(Request *, Response *) {
+	/* The code should NEVER reach this state */
+	exit(EXIT_FAILURE);
+}
 #endif

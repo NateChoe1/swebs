@@ -20,9 +20,18 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <util.h>
-#include <sitefile.h>
-#include <responseutil.h>
+#include <swebs/config.h>
+
+#include <swebs/util.h>
+#include <swebs/sitefile.h>
+#include <swebs/responseutil.h>
+#if DYNAMIC_LINKED_PAGES
+#include <swebs/dynamic.h>
+#endif
+/*
+ * This if isn't technically necessary, but it generates warnings, which is
+ * good.
+ * */
 
 typedef enum {
 	SUCCESS,
@@ -173,6 +182,7 @@ Sitefile *parseSitefile(char *path) {
 	int argc;
 	char **argv;
 	int allocatedLength = 50;
+	char gotPort = 0;
 	Sitefile *ret;
 
 	if (file == NULL)
@@ -186,6 +196,9 @@ Sitefile *parseSitefile(char *path) {
 	ret->timeout = 0;
 	ret->size = 0;
 	ret->content = malloc(allocatedLength * sizeof(SiteCommand));
+#if DYNAMIC_LINKED_PAGES
+	ret->getResponse = NULL;
+#endif
 	if (ret->content == NULL) {
 		free(ret);
 		return NULL;
@@ -194,6 +207,8 @@ Sitefile *parseSitefile(char *path) {
 		ReturnCode status = getCommand(file, &argc, &argv);
 		switch (status) {
 			case FILE_END:
+				if (!gotPort)
+					goto nterror;
 				fclose(file);
 				return ret;
 			case ERROR: case LINE_END:
@@ -226,12 +241,26 @@ Sitefile *parseSitefile(char *path) {
 				else
 					goto error;
 			}
+			else if (strcmp(argv[1], "port") == 0) {
+				ret->port = atoi(argv[2]);
+				gotPort = 1;
+			}
 			else if (strcmp(argv[1], "key") == 0)
 				ret->key = strdup(argv[2]);
 			else if (strcmp(argv[1], "cert") == 0)
 				ret->cert = strdup(argv[2]);
 			else if (strcmp(argv[1], "timeout") == 0)
 				ret->timeout = atoi(argv[2]);
+			else if (strcmp(argv[1], "library") == 0) {
+#if DYNAMIC_LINKED_PAGES
+				ret->getResponse = loadGetResponse(argv[2]);
+#else
+				fprintf(stderr,
+"This version of swebs has no dynamic page support\n"
+				);
+				exit(EXIT_FAILURE);
+#endif
+			}
 			else
 				goto error;
 			continue;
@@ -245,31 +274,37 @@ Sitefile *parseSitefile(char *path) {
 				goto error;
 			ret->content = newcontent;
 		}
-		if (argc < 3)
-			goto error;
 
 		if (regcomp(&ret->content[ret->size].path, argv[1],
 		            cflags))
 			goto error;
 
 		if (strcmp(argv[0], "read") == 0) {
+			if (argc < 3)
+				goto error;
 			ret->content[ret->size].arg = strdup(argv[2]);
 			if (ret->content[ret->size].arg == NULL)
 				goto error;
 			ret->content[ret->size].command = READ;
 		}
 		else if (strcmp(argv[0], "exec") == 0) {
+			if (argc < 3)
+				goto error;
 			ret->content[ret->size].arg = strdup(argv[2]);
 			if (ret->content[ret->size].arg == NULL)
 				goto error;
 			ret->content[ret->size].command = EXEC;
 		}
 		else if (strcmp(argv[0], "throw") == 0) {
+			if (argc < 3)
+				goto error;
 			ret->content[ret->size].arg = getCode(atoi(argv[2]));
 			if (ret->content[ret->size].arg == NULL)
 				goto error;
 			ret->content[ret->size].command = THROW;
 		}
+		else if (strcmp(argv[0], "linked") == 0)
+			ret->content[ret->size].command = LINKED;
 		else
 			goto error;
 		freeTokens(argc, argv);

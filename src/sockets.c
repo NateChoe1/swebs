@@ -26,7 +26,7 @@
 #include <netinet/in.h>
 #include <gnutls/gnutls.h>
 
-#include <sockets.h>
+#include <swebs/sockets.h>
 
 int initTLS() {
 	assert(gnutls_global_init() >= 0);

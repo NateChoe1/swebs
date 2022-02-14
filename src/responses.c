@@ -26,8 +26,8 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
-#include <responses.h>
-#include <responseutil.h>
+#include <swebs/responses.h>
+#include <swebs/responseutil.h>
 
 static int readResponse(Connection *conn, char *path) {
 	int fd = -1;
@@ -151,6 +151,38 @@ error:
 	return 1;
 }
 
+static int linkedResponse(Connection *conn,
+		int (*getResponse)(Request *request, Response *response)) {
+	Request request;
+	Response response;
+	int code;
+	int ret;
+
+	request.fieldCount = conn->fieldCount;
+	request.fields = conn->fields;
+
+	code = getResponse(&request, &response);
+
+	switch (response.type) {
+		case FILE_KNOWN_LENGTH:
+			return sendKnownPipe(conn->stream, getCode(code),
+					response.response.file.fd,
+					response.response.file.len);
+		case FILE_UNKNOWN_LENGTH:
+			return sendPipe(conn->stream, getCode(code),
+					response.response.file.fd);
+		case BUFFER:
+			ret = sendBinaryResponse(conn->stream, getCode(code),
+					response.response.buffer.data,
+					response.response.buffer.len);
+			free(response.response.buffer.data);
+			return ret;
+		case DEFAULT:
+			return sendErrorResponse(conn->stream, getCode(code));
+	}
+	return 1;
+}
+
 static int fullmatch(regex_t *regex, char *str) {
 	regmatch_t match;
 	if (regexec(regex, str, 1, &match, 0))
@@ -189,6 +221,20 @@ int sendResponse(Connection *conn, Sitefile *site) {
 				case THROW:
 					sendErrorResponse(conn->stream,
 							site->content[i].arg);
+					break;
+				case LINKED:
+#if DYNAMIC_LINKED_PAGES
+					if (!site->getResponse)
+						sendErrorResponse(conn->stream,
+								ERROR_500);
+					else
+						linkedResponse(conn,
+							site->getResponse);
+#else
+					/* Unreachable state */
+					sendErrorResponse(conn->stream,
+							ERROR_500);
+#endif
 					break;
 				default:
 					sendErrorResponse(conn->stream,
