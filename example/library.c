@@ -5,9 +5,9 @@
 #include <swebs/swebs.h>
 
 int getResponse(Request *request, Response *response) {
-	char *str = "<h1>Hello world!</h1>";
+	char *str = request->path;
 	response->type = BUFFER;
-	response->response.buffer.data = malloc(30);
+	response->response.buffer.data = malloc(100);
 	strcpy(response->response.buffer.data, str);
 	response->response.buffer.len = strlen(str);
 	return 200;

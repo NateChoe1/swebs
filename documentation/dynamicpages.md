@@ -23,9 +23,26 @@ typedef struct {
 } Field;
 /*HTTP field*/
 
+typedef enum {
+	GET,
+	POST,
+	PUT,
+	HEAD,
+	DELETE,
+	PATCH,
+	OPTIONS,
+	INVALID
+	/*
+	 * Indicates an invalid type of request, if you see this then
+	 * something's gone terribly wrong.
+	 * */
+} RequestType;
+
 typedef struct {
 	long fieldCount;
 	Field *fields;
+	char *path;
+	RequestType type;
 } Request;
 /*HTTP request, pretty self explanatory*/
 

@@ -49,6 +49,8 @@ typedef struct {
 typedef struct {
 	long fieldCount;
 	Field *fields;
+	char *path;
+	RequestType type;
 } Request;
 
 typedef enum {

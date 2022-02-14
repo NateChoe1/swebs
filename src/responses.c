@@ -160,6 +160,8 @@ static int linkedResponse(Connection *conn,
 
 	request.fieldCount = conn->fieldCount;
 	request.fields = conn->fields;
+	request.path = conn->path;
+	request.type = conn->type;
 
 	code = getResponse(&request, &response);
 
