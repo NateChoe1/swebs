@@ -15,7 +15,6 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#include <stdio.h>
 #include <stdint.h>
 #include <stdarg.h>
 #include <assert.h>

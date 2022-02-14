@@ -15,16 +15,9 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
-#include <assert.h>
-
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/socket.h>
 
 #include <util.h>
 #include <runner.h>
@@ -186,7 +179,8 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 			conn->currLineAlloc *= 2;
 			newline = realloc(conn->currLine,
 			                        conn->currLineAlloc);
-			assert(newline != NULL);
+			if (newline == NULL)
+				return 1;
 			conn->currLine = newline;
 		}
 		conn->currLine[conn->currLineLen++] = c;

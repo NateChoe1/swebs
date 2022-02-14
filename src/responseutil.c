@@ -15,15 +15,12 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-#include <limits.h>
 
 #include <unistd.h>
-#include <sys/stat.h>
 
 #include <responseutil.h>
 
