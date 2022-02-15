@@ -21,6 +21,7 @@
 
 #include <pwd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
 
@@ -189,6 +190,8 @@ NULL
 			exit(EXIT_FAILURE);
 		}
 	}
+
+	signal(SIGPIPE, SIG_IGN);
 
 	pending = calloc(processes - 1, sizeof(int));
 	notify = malloc(sizeof(int[2]) * (processes - 1));
