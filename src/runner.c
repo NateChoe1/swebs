@@ -46,16 +46,12 @@ void *runServer(RunnerArgs *args) {
 
 	for (;;) {
 		int i;
-		if (site->timeout == 0) {
-			poll(fds, connCount, -1);
-		}
-		else
-			poll(fds, connCount, site->timeout);
+		poll(fds, connCount, -1);
 		{
 			char log[200];
 			sprintf(log,
-"poll() finished with %d connections and a timeout of %d ms",
-			connCount, site->timeout);
+"poll() finished with %d connections",
+			connCount);
 			createLog(log);
 		}
 

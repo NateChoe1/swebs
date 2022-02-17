@@ -16,6 +16,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -218,6 +219,7 @@ static long diff(struct timespec *t1, struct timespec *t2) {
 }
 
 int updateConnection(Connection *conn, Sitefile *site) {
+	size_t totalReceived = 0;
 	for (;;) {
 		char buff[300];
 		ssize_t received;
@@ -229,10 +231,17 @@ int updateConnection(Connection *conn, Sitefile *site) {
 		    diff(&conn->lastdata, &currentTime) > site->timeout)
 			return 1;
 		received = recvStream(conn->stream, buff, sizeof(buff));
-		if (received < 0)
+		if (received < 0) {
+			char log[200];
+			sprintf(log,
+"recvStream() returned %ld, with errno %d, received %lu bytes this iteration "
+"of updateConnection",
+			received, errno, totalReceived);
 			return errno != EAGAIN;
+		}
 		if (received == 0)
-			return 0;
+			return 1;
+		totalReceived += received;
 		memcpy(&conn->lastdata, &currentTime, sizeof(struct timespec));
 		for (i = 0; i < received; i++) {
 			if (processChar(conn, buff[i], site))
