@@ -16,7 +16,7 @@ work/%.o: src/%.c $(wildcard src/swebs/*.h)
 
 install: build/$(OUT)
 	cp build/$(OUT) $(INSTALLDIR)/$(OUT)
-	cp -r src/$(INCLUDE_DIRECTORY) $(HEADERDIR)/$(INCLUDE_DIRECTORY)
+	cp -r src/$(INCLUDE_DIRECTORY) $(HEADERDIR)/
 	if ! id swebs >> /dev/null 2>&1; then useradd -M swebs; fi
 
 uninstall: $(INSTALLDIR)/$(OUT)
