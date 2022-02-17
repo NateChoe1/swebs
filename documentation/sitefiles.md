@@ -34,5 +34,5 @@ sitefiles also allow comments with #
 	* TLS
 * ```key``` - The filepath of the private key to use if transport == TLS
 * ```cert``` - The filepath of the certificate to use if transport == TLS
-* ```timeout``` - The amount of time to wait for data before closing the connection in ms
+* ```timeout``` - The amount of time to wait for data before closing the connection in ms. A timeout of 0 means to wait infinitely. (default: 2000)
 * ```library``` - the path of a library that is linked in during runtime if ```DYNAMIC_LINKED_PAGES```is set.

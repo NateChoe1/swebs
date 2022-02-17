@@ -15,6 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -22,6 +23,7 @@
 #include <poll.h>
 #include <unistd.h>
 
+#include <swebs/util.h>
 #include <swebs/runner.h>
 #include <swebs/sitefile.h>
 #include <swebs/connections.h>
@@ -44,7 +46,19 @@ void *runServer(RunnerArgs *args) {
 
 	for (;;) {
 		int i;
-		poll(fds, connCount, site->timeout);
+		if (site->timeout == 0) {
+			poll(fds, connCount, -1);
+		}
+		else
+			poll(fds, connCount, site->timeout);
+		{
+			char log[200];
+			sprintf(log,
+"poll() finished with %d connections and a timeout of %d ms",
+			connCount, site->timeout);
+			createLog(log);
+		}
+
 
 		for (i = 1; i < connCount; i++) {
 			if (updateConnection(connections + i, site))

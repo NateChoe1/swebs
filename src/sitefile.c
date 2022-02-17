@@ -193,7 +193,7 @@ Sitefile *parseSitefile(char *path) {
 	ret->type = TCP;
 	ret->key = NULL;
 	ret->cert = NULL;
-	ret->timeout = 0;
+	ret->timeout = 2000;
 	ret->size = 0;
 	ret->content = malloc(allocatedLength * sizeof(SiteCommand));
 #if DYNAMIC_LINKED_PAGES

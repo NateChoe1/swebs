@@ -41,7 +41,7 @@ static void daemonize(char *pidfile) {
 			break;
 		default:
 			pidout = fopen(pidfile, "w");
-			fprintf(pidout, "%d\n", getpid());
+			fprintf(pidout, "%d\n", pid);
 			fclose(pidout);
 			exit(EXIT_SUCCESS);
 	}
@@ -218,6 +218,7 @@ NULL
 	for (;;) {
 		Stream *stream = acceptStream(listener, O_NONBLOCK);
 		int lowestThread;
+		createLog("Accepted stream");
 		if (stream == NULL) {
 			createLog("Accepting a stream failed");
 			continue;
