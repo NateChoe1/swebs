@@ -37,8 +37,8 @@ static int readResponse(Connection *conn, char *path) {
 		return 1;
 	}
 	if (S_ISDIR(statbuf.st_mode)) {
-		long reqPathLen = strlen(conn->path);
-		long pathLen = strlen(path);
+		size_t reqPathLen = conn->path.len;
+		size_t pathLen = strlen(path);
 		char *assembledPath = malloc(reqPathLen + pathLen + 1);
 		char requestPath[PATH_MAX], responsePath[PATH_MAX];
 		size_t responsePathLen;
@@ -46,7 +46,8 @@ static int readResponse(Connection *conn, char *path) {
 		if (assembledPath == NULL)
 			goto error;
 		memcpy(assembledPath, path, pathLen);
-		memcpy(assembledPath + pathLen, conn->path, reqPathLen + 1);
+		memcpy(assembledPath + pathLen,
+				conn->path.data, reqPathLen + 1);
 
 		if (realpath(assembledPath, requestPath) == NULL) {
 			if (errno == ENOENT) {
@@ -101,56 +102,6 @@ forbidden:
 	return 1;
 }
 
-static int execResponse(Connection *conn, char *path) {
-	int output[2];
-	int status;
-	pid_t pid;
-	if (pipe(output))
-		goto error;
-
-	pid = fork();
-	if (pid < 0)
-		goto error;
-	if (pid == 0) {
-		char **args;
-		int i;
-		close(1);
-		close(output[0]);
-		dup2(output[1], 1);
-		args = malloc((conn->fieldCount*2 + 2) * sizeof(char *));
-		if (args == NULL) {
-			close(output[1]);
-			exit(EXIT_FAILURE);
-		}
-		args[0] = conn->path;
-		for (i = 0; i < conn->fieldCount; i++) {
-			args[i * 2 + 1] = conn->fields[i].field;
-			args[i * 2 + 2] = conn->fields[i].value;
-		}
-		args[conn->fieldCount*2 + 1] = NULL;
-		if (execv(path, args) < 0) {
-			close(output[1]);
-			free(args);
-			exit(EXIT_FAILURE);
-		}
-		close(output[1]);
-		free(args);
-		exit(EXIT_SUCCESS);
-	}
-
-	close(output[1]);
-
-	status = sendPipe(conn->stream, CODE_200, output[0]);
-	{
-		int exitcode;
-		waitpid(pid, &exitcode, 0);
-	}
-	return status;
-error:
-	sendErrorResponse(conn->stream, ERROR_500);
-	return 1;
-}
-
 static int linkedResponse(Connection *conn,
 		int (*getResponse)(Request *request, Response *response)) {
 	Request request;
@@ -160,7 +111,9 @@ static int linkedResponse(Connection *conn,
 
 	request.fieldCount = conn->fieldCount;
 	request.fields = conn->fields;
-	request.path = conn->path;
+	request.path.path = conn->path;
+	request.path.fieldCount = conn->pathFieldCount;
+	request.path.fields = conn->pathFields;
 	request.type = conn->type;
 	request.body = conn->body;
 	request.bodylen = conn->bodylen;
@@ -212,14 +165,10 @@ int sendResponse(Connection *conn, Sitefile *site) {
 			continue;
 		if (fullmatch(&site->content[i].host, host))
 			continue;
-		if (fullmatch(&site->content[i].path, conn->path) == 0) {
+		if (fullmatch(&site->content[i].path, conn->path.data) == 0) {
 			switch (site->content[i].command) {
 				case READ:
 					readResponse(conn,
-							site->content[i].arg);
-					break;
-				case EXEC:
-					execResponse(conn,
 							site->content[i].arg);
 					break;
 				case THROW:

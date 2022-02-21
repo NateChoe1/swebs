@@ -16,6 +16,7 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include <errno.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,7 +46,15 @@ int newConnection(Stream *stream, Connection *ret) {
 		return 1;
 	}
 
-	ret->path = NULL;
+	ret->allocatedPathFields = 10;
+	ret->pathFields = malloc(ret->allocatedPathFields * sizeof(PathField));
+	if (ret->pathFields == NULL) {
+		free(ret->currLine);
+		free(ret->fields);
+		return 1;
+	}
+	ret->pathFieldCount = 0;
+
 	ret->body = NULL;
 	/*
 	 * pointers to things that are allocated within functions should be
@@ -54,6 +63,8 @@ int newConnection(Stream *stream, Connection *ret) {
 
 	if (clock_gettime(CLOCK_MONOTONIC, &currentTime) < 0) {
 		free(ret->currLine);
+		free(ret->fields);
+		free(ret->pathFields);
 		return 1;
 	}
 	memcpy(&ret->lastdata, &currentTime, sizeof(struct timespec));
@@ -61,20 +72,146 @@ int newConnection(Stream *stream, Connection *ret) {
 }
 
 void resetConnection(Connection *conn) {
+	long i;
 	conn->progress = RECEIVE_REQUEST;
 	conn->fieldCount = 0;
 	free(conn->body);
-	free(conn->path);
 	conn->body = NULL;
-	conn->path = NULL;
+	conn->pathFieldCount = 0;
+	for (i = 0; i < conn->pathFieldCount; i++) {
+		free(conn->pathFields[i].var.data);
+		free(conn->pathFields[i].value.data);
+	}
 }
 
 void freeConnection(Connection *conn) {
+	long i;
 	freeStream(conn->stream);
 	free(conn->currLine);
-	free(conn->path);
 	free(conn->fields);
 	free(conn->body);
+	for (i = 0; i < conn->fieldCount; i++) {
+		free(conn->pathFields[i].var.data);
+		free(conn->pathFields[i].value.data);
+	}
+	free(conn->pathFields);
+}
+
+static int createBinaryString(BinaryString *ret) {
+	ret->allocatedLen = 50;
+	ret->data = malloc(ret->allocatedLen);
+	if (ret->data == NULL)
+		return 1;
+	ret->len = 0;
+	return 0;
+}
+
+static int appendBinaryString(BinaryString *ret, char c) {
+	if (ret->len >= ret->allocatedLen) {
+		char *newdata;
+		ret->allocatedLen *= 2;
+		newdata = realloc(ret->data, ret->allocatedLen);
+		if (newdata == NULL) {
+			free(ret->data);
+			return 1;
+		}
+		ret->data = newdata;
+	}
+	ret->data[ret->len++] = c;
+	return 0;
+}
+
+static int hexval(char c) {
+	if (isdigit(c))
+		return c - '0';
+	if ('a' <= c && c <= 'f')
+		return c - 'a' + 10;
+	if ('A' <= c && c <= 'F')
+		return c - 'A' + 10;
+	return -1;
+}
+
+static int getBinaryString(BinaryString *ret, char *path, char stop,
+		long *lenReturn) {
+	long i;
+	createBinaryString(ret);
+	for (i = 0; path[i] != stop && path[i] != '\0'; i++) {
+		char c;
+		if (path[i] == '%') {
+			int v;
+			v = hexval(path[i + 1]);
+			if (v < 0) {
+				free(ret->data);
+				return 1;
+			}
+			c = v << 4;
+			v = hexval(path[i + 2]);
+			if (v < 0) {
+				free(ret->data);
+				return 1;
+			}
+			c |= v;
+			i += 2;
+		}
+		else
+			c = path[i];
+		appendBinaryString(ret, c);
+	}
+	appendBinaryString(ret, '\0');
+	*lenReturn = i;
+	return 0;
+}
+
+static int processPath(Connection *conn, char *path) {
+	long len;
+	if (getBinaryString(&conn->path, path, '?', &len))
+		return 1;
+	path += len;
+	while (path[0] != '\0') {
+		if (conn->pathFieldCount >= conn->allocatedPathFields) {
+			PathField *newPathFields;
+
+			conn->allocatedPathFields *= 2;
+			newPathFields = realloc(conn->pathFields,
+						conn->allocatedPathFields *
+						sizeof(PathField));
+			if (newPathFields == NULL)
+				goto error;
+			conn->pathFields = newPathFields;
+		}
+
+		path++;
+		if (getBinaryString(
+				&conn->pathFields[conn->pathFieldCount].var,
+				path, '=', &len))
+			goto error;
+		path += len;
+		if (path[0] == '\0') {
+			free(conn->pathFields[conn->pathFieldCount].var.data);
+			goto error;
+		}
+		path++;
+		if (getBinaryString(
+				&conn->pathFields[conn->pathFieldCount].value,
+				path, '&', &len)) {
+			free(conn->pathFields[conn->pathFieldCount].var.data);
+			goto error;
+		}
+		conn->pathFieldCount++;
+		path += len;
+	}
+	return 0;
+error:
+	{
+		long i;
+		for (i = 0; i < conn->fieldCount; i++) {
+			free(conn->pathFields[i].var.data);
+			free(conn->pathFields[i].value.data);
+		}
+		free(conn->pathFields);
+		free(conn->path.data);
+		return 1;
+	}
 }
 
 static int processRequest(Connection *conn) {
@@ -102,10 +239,8 @@ static int processRequest(Connection *conn) {
 	for (i = 0;; i++) {
 		if (line[i] == ' ') {
 			line[i] = '\0';
-			conn->path = malloc(i + 1);
-			if (conn->path == NULL)
+			if (processPath(conn, line))
 				return 1;
-			memcpy(conn->path, line, i + 1);
 			line += i + 1;
 			break;
 		}
@@ -231,14 +366,8 @@ int updateConnection(Connection *conn, Sitefile *site) {
 		    diff(&conn->lastdata, &currentTime) > site->timeout)
 			return 1;
 		received = recvStream(conn->stream, buff, sizeof(buff));
-		if (received < 0) {
-			char log[200];
-			sprintf(log,
-"recvStream() returned %ld, with errno %d, received %lu bytes this iteration "
-"of updateConnection",
-			received, errno, totalReceived);
+		if (received < 0)
 			return errno != EAGAIN;
-		}
 		if (received == 0)
 			return 1;
 		totalReceived += received;

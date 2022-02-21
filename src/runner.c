@@ -71,12 +71,6 @@ remove:
 
 		if (fds[0].revents & POLLIN) {
 			Stream *newstream;
-			{
-				char log[200];
-				sprintf(log,
-"Thread %d received a connection (it now has %d connections)",
-				id, connCount);
-			}
 			if (connCount >= allocConns) {
 				struct pollfd *newfds;
 				Connection *newconns;

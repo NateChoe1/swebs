@@ -25,7 +25,6 @@
 
 typedef enum {
 	READ,
-	EXEC,
 	THROW,
 	LINKED
 } Command;

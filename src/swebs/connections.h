@@ -18,6 +18,7 @@
 #ifndef HAVE_CONNECTIONS
 #define HAVE_CONNECTIONS
 
+#include <swebs/types.h>
 #include <swebs/runner.h>
 #include <swebs/sockets.h>
 #include <swebs/sitefile.h>
@@ -36,7 +37,10 @@ typedef struct Connection {
 	/* the last time that data was received from this connection. */
 
 	RequestType type;
-	char *path;
+	BinaryString path;
+	long pathFieldCount;
+	long allocatedPathFields;
+	PathField *pathFields;
 	/* ephemeral */
 
 	Field *fields;

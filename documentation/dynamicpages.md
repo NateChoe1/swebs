@@ -39,9 +39,29 @@ typedef enum {
 } RequestType;
 
 typedef struct {
+	char *data;
+	/* data is guarunteed to be NULL terminated, although not necessarily
+	 * once. */
+	size_t len;
+	size_t allocatedLen;
+	/* The amount of bytes allocated, for internal use. */
+} BinaryString;
+
+typedef struct {
+	BinaryString var;
+	BinaryString value;
+} PathField;
+
+typedef struct {
+	BinaryString path;
+	long fieldCount;
+	PathField *fields;
+} Path;
+
+typedef struct {
 	long fieldCount;
 	Field *fields;
-	char *path;
+	Path path;
 	RequestType type;
 } Request;
 /*HTTP request, pretty self explanatory*/
