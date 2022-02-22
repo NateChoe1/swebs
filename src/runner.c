@@ -55,12 +55,12 @@ void *runServer(RunnerArgs *args) {
 			createLog(log);
 		}
 
-
 		for (i = 1; i < connCount; i++) {
 			if (updateConnection(connections + i, site))
 				goto remove;
 			continue;
 remove:
+			freeConnection(connections + i);
 			connCount--;
 			memcpy(fds + i, fds + connCount,
 					sizeof(struct pollfd));
