@@ -77,24 +77,28 @@ remove:
 				allocConns *= 2;
 				newfds = realloc(fds,
 					sizeof(struct pollfd) * allocConns);
-				if (newfds == NULL)
-					exit(EXIT_FAILURE);
+				if (newfds == NULL) {
+					allocConns /= 2;
+					continue;
+				}
 				fds = newfds;
 
 				newconns = realloc(connections,
 					sizeof(Connection) * allocConns);
-				if (newconns == NULL)
-					exit(EXIT_FAILURE);
+				if (newconns == NULL) {
+					allocConns /= 2;
+					continue;
+				}
 				connections = newconns;
 			}
 			if (read(notify, &newstream, sizeof(newstream))
 					< sizeof(newstream))
-				exit(EXIT_FAILURE);
+				continue;
 			fds[connCount].fd = newstream->fd;
 			fds[connCount].events = POLLIN;
 
 			if (newConnection(newstream, connections + connCount))
-				exit(EXIT_FAILURE);
+				continue;
 			connCount++;
 			pending[id]++;
 		}

@@ -138,7 +138,6 @@ NULL
 		}
 	}
 
-
 	if (sitefile == NULL) {
 		fprintf(stderr, "No sitefile configured\n");
 		exit(EXIT_FAILURE);
@@ -230,7 +229,7 @@ NULL
 				lowestThread = i;
 		if (write(notify[lowestThread][1], &stream, sizeof(&stream))
 		          < sizeof(&stream))
-			exit(EXIT_FAILURE);
+			continue;
 	}
 	
 }
