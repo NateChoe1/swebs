@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
-#include <stdint.h>
 
 #include <swebs/util.h>
 #include <swebs/types.h>
@@ -63,7 +62,7 @@ int istrcmp(char *s1, char *s2) {
 }
 
 RequestType getType(char *str) {
-	uint64_t type;
+	unsigned long type;
 	int i;
 	if (strlen(str) >= 8)
 		return INVALID;

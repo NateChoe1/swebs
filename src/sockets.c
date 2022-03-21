@@ -15,7 +15,6 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#include <stdint.h>
 #include <stdarg.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -33,7 +32,8 @@ int initTLS() {
 	return 0;
 }
 
-Listener *createListener(SocketType type, uint16_t port, int backlog, ...) {
+Listener *createListener(SocketType type, unsigned short port,
+		int backlog, ...) {
 	Listener *ret = malloc(sizeof(Listener));
 	va_list ap;
 	if (ret == NULL)

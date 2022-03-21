@@ -18,7 +18,6 @@
 #ifndef HAVE_SITEFILE
 #define HAVE_SITEFILE
 #include <regex.h>
-#include <stdint.h>
 
 #include <swebs/types.h>
 #include <swebs/config.h>
@@ -44,7 +43,7 @@ typedef struct {
 	char *key;
 	char *cert;
 	int timeout;
-	uint16_t port;
+	unsigned short port;
 #if DYNAMIC_LINKED_PAGES
 	int (*getResponse)(Request *, Response *);
 #endif
