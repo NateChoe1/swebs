@@ -24,7 +24,8 @@
 
 typedef struct {
 	Sitefile *site;
-	int *pending;
+	int pendingid;
+	/* int *pending */
 	/*
 	 * pending[thread id] = the number of connections being handled by that
 	 * thread
@@ -32,7 +33,7 @@ typedef struct {
 	int notify;
 	/*
 	 * When this runner should accept a connection, notify will contain an
-	 * int ready to be read.
+	 * int ready to be read. notify is an fd
 	 * */
 	int id;
 } RunnerArgs;

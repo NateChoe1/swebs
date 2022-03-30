@@ -30,7 +30,7 @@
 
 void *runServer(RunnerArgs *args) {
 	Sitefile *site = args->site;
-	int *pending = args->pending;
+	int *pending = saddr(args->pendingid);
 	int notify = args->notify;
 	int id = args->id;
 
@@ -62,7 +62,7 @@ void *runServer(RunnerArgs *args) {
 remove:
 			freeConnection(connections + i);
 			connCount--;
-			memcpy(fds + i, fds + connCount,
+			memcpy(fds + i, fds + connCount - 1,
 					sizeof(struct pollfd));
 			memcpy(connections + i, fds + connCount,
 					sizeof(struct pollfd));

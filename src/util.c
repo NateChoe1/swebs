@@ -20,6 +20,9 @@
 #include <ctype.h>
 #include <string.h>
 
+#include <fcntl.h>
+#include <sys/shm.h>
+
 #include <swebs/util.h>
 #include <swebs/types.h>
 
@@ -28,6 +31,23 @@ static FILE *logs;
 int initLogging(char *path) {
 	logs = fopen(path, "a");
 	return logs == NULL;
+}
+
+int smalloc(size_t size) {
+	return shmget(IPC_PRIVATE, size,
+			IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+}
+
+void *saddr(int id) {
+	return shmat(id, NULL, 0);
+}
+
+void sfree(void *addr) {
+	shmdt(addr);
+}
+
+void sdestroy(int id) {
+	shmctl(id, IPC_RMID, 0);
 }
 
 int createLog(char *msg) {

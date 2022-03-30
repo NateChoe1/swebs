@@ -21,6 +21,13 @@
 #include <swebs/types.h>
 
 int initLogging(char *path);
+
+int smalloc(size_t size);
+/* returns an id passed to saddr, or -1 on error */
+void *saddr(int id);
+void sfree(void *addr);
+void sdestroy(int id);
+
 int createLog(char *msg);
 int istrcmp(char *s1, char *s2);
 /* case insensitive strcmp */
