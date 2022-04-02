@@ -15,12 +15,14 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 
 #include <poll.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <swebs/util.h>
@@ -28,12 +30,8 @@
 #include <swebs/sitefile.h>
 #include <swebs/connections.h>
 
-void *runServer(RunnerArgs *args) {
-	Sitefile *site = args->site;
-	int *pending = saddr(args->pendingid);
-	int notify = args->notify;
-	int id = args->id;
-
+void runServer(int connfd, Sitefile *site, Listener *listener,
+		int *pending, int id) {
 	int allocConns = 100;
 	struct pollfd *fds = malloc(sizeof(struct pollfd) * allocConns);
 	Connection *connections = malloc(sizeof(Connection) * allocConns);
@@ -41,7 +39,7 @@ void *runServer(RunnerArgs *args) {
 	/* connections are 1 indexed because fds[0] is the notify fd. */
 	assert(fds != NULL);
 	assert(connections != NULL);
-	fds[0].fd = notify;
+	fds[0].fd = connfd;
 	fds[0].events = POLLIN;
 
 	for (;;) {
@@ -71,6 +69,21 @@ remove:
 
 		if (fds[0].revents & POLLIN) {
 			Stream *newstream;
+			int newfd;
+			newfd = recvFd(connfd);
+			if (newfd < 0) {
+				createLog("Message received that included an invalid fd");
+				continue;
+			}
+			newstream = createStream(listener, O_NONBLOCK, newfd);
+
+			createLog("Obtained file descriptor from child");
+			if (newstream == NULL) {
+				createLog("Stream couldn't be created from file descriptor");
+				close(newfd);
+				continue;
+			}
+
 			if (connCount >= allocConns) {
 				struct pollfd *newfds;
 				Connection *newconns;
@@ -91,17 +104,15 @@ remove:
 				}
 				connections = newconns;
 			}
-			if (read(notify, &newstream, sizeof(newstream))
-					< sizeof(newstream))
-				continue;
-			fds[connCount].fd = newstream->fd;
-			fds[connCount].events = POLLIN;
 
-			if (newConnection(newstream, connections + connCount))
+			if (newConnection(newstream, connections + connCount)) {
+				createLog("Couldn't initialize connection from stream");
 				continue;
+			}
+			fds[connCount].fd = newfd;
+			fds[connCount].events = POLLIN;
 			connCount++;
 			pending[id]++;
 		}
 	}
-	return NULL;
 }

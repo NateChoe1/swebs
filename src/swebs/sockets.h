@@ -27,6 +27,7 @@
 typedef struct {
 	SocketType type;
 	int fd;
+	int shmid;
 	struct sockaddr_in addr;
 	socklen_t addrlen;
 	gnutls_certificate_credentials_t creds;
@@ -46,6 +47,7 @@ Listener *createListener(SocketType type, uint16_t port, int backlog, ...);
  * tcp: (void)
  * tls: (char *keyfile, char *certfile, char *ocspfile)
  * */
+Stream *createStream(Listener *listener, int flags, int fd);
 Stream *acceptStream(Listener *listener, int flags);
 /* returns 1 on error, accepts fcntl flags */
 

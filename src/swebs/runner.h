@@ -19,25 +19,10 @@
 #define HAVE_RUNNER
 #include <sys/socket.h>
 
+#include <swebs/sockets.h>
 #include <swebs/sitefile.h>
 #include <swebs/connections.h>
 
-typedef struct {
-	Sitefile *site;
-	int pendingid;
-	/* int *pending */
-	/*
-	 * pending[thread id] = the number of connections being handled by that
-	 * thread
-	 * */
-	int notify;
-	/*
-	 * When this runner should accept a connection, notify will contain an
-	 * int ready to be read. notify is an fd
-	 * */
-	int id;
-} RunnerArgs;
-/* my least favourite anti pattern */
-
-void *runServer(RunnerArgs *args);
+void runServer(int connfd, Sitefile *site, Listener *listener,
+		int *pending, int id);
 #endif

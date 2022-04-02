@@ -32,4 +32,7 @@ int createLog(char *msg);
 int istrcmp(char *s1, char *s2);
 /* case insensitive strcmp */
 RequestType getType(char *str);
+
+void sendFd(int fd, int dest);
+int recvFd(int source);
 #endif

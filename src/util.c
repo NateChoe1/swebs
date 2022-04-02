@@ -22,6 +22,7 @@
 
 #include <fcntl.h>
 #include <sys/shm.h>
+#include <sys/socket.h>
 
 #include <swebs/util.h>
 #include <swebs/types.h>
@@ -39,7 +40,11 @@ int smalloc(size_t size) {
 }
 
 void *saddr(int id) {
-	return shmat(id, NULL, 0);
+	void *addr;
+	addr = shmat(id, NULL, 0);
+	if (addr == (void *) -1)
+		return NULL;
+	return addr;
 }
 
 void sfree(void *addr) {
@@ -82,35 +87,59 @@ int istrcmp(char *s1, char *s2) {
 }
 
 RequestType getType(char *str) {
-	unsigned long type;
-	int i;
-	if (strlen(str) >= 8)
-		return INVALID;
-	type = 0;
-	for (i = 0; str[i]; i++) {
-		type <<= 8;
-		type |= str[i];
-	}
-	switch (type) {
-		case 0x474554l:
-			return GET;
-		case 0x504f5354l:
-			return POST;
-		case 0x505554l:
-			return PUT;
-		case 0x48454144l:
-			return HEAD;
-		case 0x44454c455445l:
-			return DELETE;
-		case 0x5041544348l:
-			return PATCH;
-		case 0x4f5054494f4e53l:
-			return OPTIONS;
-		default:
-			return INVALID;
-	}
-	/*
-	 * This would actually be far nicer in HolyC of all languages. I feel
-	 * like the context immediately following each magic number is enough.
-	 * */
+	if (strcmp(str, "GET") == 0)
+		return GET;
+	if (strcmp(str, "POST") == 0)
+		return POST;
+	if (strcmp(str, "PUT") == 0)
+		return PUT;
+	if (strcmp(str, "HEAD") == 0)
+		return HEAD;
+	if (strcmp(str, "DELETE") == 0)
+		return DELETE;
+	if (strcmp(str, "PATCH") == 0)
+		return PATCH;
+	if (strcmp(str, "OPTIONS") == 0)
+		return OPTIONS;
+	return INVALID;
+}
+
+void sendFd(int fd, int dest) {
+	struct msghdr msg;
+	struct cmsghdr *cmsg;
+	char iobuf[1];
+	struct iovec io;
+	union {
+		char buf[CMSG_SPACE(sizeof(fd))];
+		struct cmsghdr align;
+	} u;
+	memset(&msg, 0, sizeof(msg));
+	io.iov_base = iobuf;
+	io.iov_len = sizeof(iobuf);
+	msg.msg_iov = &io;
+	msg.msg_iovlen = 1;
+	msg.msg_control = u.buf;
+	msg.msg_controllen = sizeof(u.buf);
+	cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(fd));
+	memcpy(CMSG_DATA(cmsg), &fd, sizeof(fd));
+	sendmsg(dest, &msg, 0);
+}
+
+int recvFd(int source) {
+	struct msghdr msg;
+	struct cmsghdr *cmsg;
+	char cmsgbuf[CMSG_SPACE(sizeof(int))];
+	unsigned char *data;
+	int ret;
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_control = cmsgbuf;
+	msg.msg_controllen = sizeof(cmsgbuf);
+	recvmsg(source, &msg, 0);
+	cmsg = CMSG_FIRSTHDR(&msg);
+	data = CMSG_DATA(cmsg);
+	memcpy(&ret, data, sizeof(ret));
+	return ret;
 }

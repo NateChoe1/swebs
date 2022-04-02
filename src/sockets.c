@@ -25,6 +25,7 @@
 #include <netinet/in.h>
 #include <gnutls/gnutls.h>
 
+#include <swebs/util.h>
 #include <swebs/sockets.h>
 
 int initTLS() {
@@ -34,12 +35,20 @@ int initTLS() {
 
 Listener *createListener(SocketType type, unsigned short port,
 		int backlog, ...) {
+	int shmid;
 	Listener *ret = malloc(sizeof(Listener));
 	va_list ap;
-	if (ret == NULL)
+	shmid = smalloc(sizeof(Listener));
+	if (shmid < 0)
 		return NULL;
+	ret = saddr(shmid);
+	if (ret == NULL) {
+		sdestroy(shmid);
+		return NULL;
+	}
 	ret->type = type;
 	ret->fd = socket(AF_INET, SOCK_STREAM, 0);
+	ret->shmid = shmid;
 	if (ret->fd < 0) {
 		free(ret);
 		return NULL;
@@ -89,22 +98,17 @@ Listener *createListener(SocketType type, unsigned short port,
 	return ret;
 error:
 	close(ret->fd);
-	free(ret);
+	sfree(ret);
+	sdestroy(shmid);
 	return NULL;
 }
 
-Stream *acceptStream(Listener *listener, int flags) {
+Stream *createStream(Listener *listener, int flags, int fd) {
 	Stream *ret = malloc(sizeof(Stream));
 	if (ret == NULL)
 		return NULL;
 	ret->type = listener->type;
-	ret->fd = accept(listener->fd, (struct sockaddr *) &listener->addr,
-	                               &listener->addrlen);
-
-	if (ret->fd < 0) {
-		free(ret);
-		return NULL;
-	}
+	ret->fd = fd;
 
 	{
 		int oldflags = fcntl(ret->fd, F_GETFL);
@@ -140,13 +144,23 @@ error:
 	return NULL;
 }
 
+Stream *acceptStream(Listener *listener, int flags) {
+	int fd;
+	fd = accept(listener->fd, (struct sockaddr *) &listener->addr,
+	                               &listener->addrlen);
+	return createStream(listener, flags, fd);
+}
+
 void freeListener(Listener *listener) {
+	int shmid;
 	if (listener->type == TLS) {
 		gnutls_certificate_free_credentials(listener->creds);
 		gnutls_priority_deinit(listener->priority);
 	}
 	close(listener->fd);
-	free(listener);
+	shmid = listener->shmid;
+	sfree(listener);
+	sdestroy(shmid);
 }
 
 void freeStream(Stream *stream) {
