@@ -25,14 +25,17 @@
 #include <swebs/types.h>
 
 typedef struct {
-	SocketType type;
 	int fd;
-	int shmid;
 	struct sockaddr_in addr;
 	socklen_t addrlen;
+} Listener;
+
+typedef struct {
+	SocketType type;
 	gnutls_certificate_credentials_t creds;
 	gnutls_priority_t priority;
-} Listener;
+	/* creds and priority are only used in TLS structs. */
+} Context;
 
 typedef struct {
 	SocketType type;
@@ -41,17 +44,20 @@ typedef struct {
 } Stream;
 
 int initTLS();
-Listener *createListener(SocketType type, uint16_t port, int backlog, ...);
+Listener *createListener(uint16_t port, int backlog);
+Context *createContext(SocketType type, ...);
 /*
  * extra arguments depend on type (similar to fcntl):
  * tcp: (void)
- * tls: (char *keyfile, char *certfile, char *ocspfile)
+ * tls: (char *keyfile, char *certfile)
  * */
-Stream *createStream(Listener *listener, int flags, int fd);
-Stream *acceptStream(Listener *listener, int flags);
-/* returns 1 on error, accepts fcntl flags */
+int acceptConnection(Listener *listener);
+/* Returns a file descriptor from the listener */
+Stream *createStream(Context *context, int flags, int fd);
+/* flags are fcntl flags */
 
 void freeListener(Listener *listener);
+void freeContext(Context *context);
 void freeStream(Stream *stream);
 
 ssize_t sendStream(Stream *stream, const void *data, size_t len);

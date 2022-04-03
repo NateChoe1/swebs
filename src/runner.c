@@ -37,10 +37,23 @@ void runServer(int connfd, Sitefile *site, Listener *listener,
 	Connection *connections = malloc(sizeof(Connection) * allocConns);
 	int connCount = 1;
 	/* connections are 1 indexed because fds[0] is the notify fd. */
+	Context *context;
 	assert(fds != NULL);
 	assert(connections != NULL);
 	fds[0].fd = connfd;
 	fds[0].events = POLLIN;
+
+	switch (site->type) {
+		case TCP:
+			context = createContext(TCP);
+			break;
+		case TLS:
+			context = createContext(TLS, site->key, site->cert);
+			break;
+		default:
+			createLog("Socket type is somehow invalid");
+			return;
+	}
 
 	for (;;) {
 		int i;
@@ -75,9 +88,10 @@ remove:
 				createLog("Message received that included an invalid fd");
 				continue;
 			}
-			newstream = createStream(listener, O_NONBLOCK, newfd);
 
 			createLog("Obtained file descriptor from child");
+
+			newstream = createStream(context, O_NONBLOCK, newfd);
 			if (newstream == NULL) {
 				createLog("Stream couldn't be created from file descriptor");
 				close(newfd);

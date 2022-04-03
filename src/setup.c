@@ -139,16 +139,7 @@ NULL
 		exit(EXIT_FAILURE);
 	}
 
-	switch ((*site)->type) {
-		case TCP: default:
-			*listener = createListener(TCP, (*site)->port, backlog);
-			break;
-		case TLS:
-			initTLS();
-			*listener = createListener(TLS, (*site)->port, backlog,
-					(*site)->key, (*site)->cert);
-			break;
-	}
+	*listener = createListener((*site)->port, backlog);
 	if (listener == NULL) {
 		fprintf(stderr, "Failed to create socket\n");
 		exit(EXIT_FAILURE);
