@@ -147,6 +147,7 @@ Stream *createStream(Context *context, int flags, int fd) {
 	}
 	return ret;
 error:
+	shutdown(ret->fd, SHUT_RDWR);
 	close(ret->fd);
 	free(ret);
 	return NULL;
@@ -168,6 +169,7 @@ void freeStream(Stream *stream) {
 		gnutls_bye(stream->session, GNUTLS_SHUT_RDWR);
 		gnutls_deinit(stream->session);
 	}
+	shutdown(stream->fd, SHUT_RDWR);
 	close(stream->fd);
 	free(stream);
 }
