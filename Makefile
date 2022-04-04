@@ -1,15 +1,16 @@
 SRC = $(wildcard src/*.c)
 OBJ = $(subst .c,.o,$(subst src,work,$(SRC)))
-LIBS = -pie -lrt -ldl $(shell pkg-config --libs gnutls)
+LIBS = gnutls
+LDFLAGS = -pie -lrt -ldl $(shell pkg-config --libs $(LIBS))
 CFLAGS := -O2 -pipe -Wall -Wpedantic -Wshadow -ansi
-CFLAGS += -Isrc/ -fpie -D_POSIX_C_SOURCE=200809L $(shell pkg-config --cflags gnutls)
+CFLAGS += -Isrc/ -fpie -D_POSIX_C_SOURCE=200809L $(shell pkg-config --cflags $(LIBS))
 INSTALLDIR := /usr/sbin
 HEADERDIR := /usr/include/
 INCLUDE_DIRECTORY := swebs
 OUT = swebs
 
 build/$(OUT): $(OBJ)
-	$(CC) $(OBJ) -o build/$(OUT) $(LIBS)
+	$(CC) $(OBJ) -o build/$(OUT) $(LDFLAGS)
 
 work/%.o: src/%.c $(wildcard src/swebs/*.h)
 	$(CC) $(CFLAGS) $< -c -o $@

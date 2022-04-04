@@ -129,17 +129,39 @@ void sendFd(int fd, int dest) {
 }
 
 int recvFd(int source) {
+	union {
+		char buff[CMSG_SPACE(sizeof(int))];
+		struct cmsghdr align;
+	} cmsghdr;
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
-	char cmsgbuf[CMSG_SPACE(sizeof(int))];
-	unsigned char *data;
+	struct iovec iov;
+	int data;
+	ssize_t nr;
 	int ret;
-	memset(&msg, 0, sizeof(msg));
-	msg.msg_control = cmsgbuf;
-	msg.msg_controllen = sizeof(cmsgbuf);
-	recvmsg(source, &msg, 0);
+
+	msg.msg_name = NULL;
+	msg.msg_namelen = 0;
+
+	iov.iov_base = &data;
+	iov.iov_len = sizeof(data);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+
+	msg.msg_control = cmsghdr.buff;
+	msg.msg_controllen = sizeof(cmsghdr.buff);
+	nr = recvmsg(source, &msg, 0);
+	if (nr < 0)
+		return -1;
+
 	cmsg = CMSG_FIRSTHDR(&msg);
-	data = CMSG_DATA(cmsg);
-	memcpy(&ret, data, sizeof(ret));
+	if (cmsg == NULL || cmsg->cmsg_len != CMSG_LEN(sizeof(data)))
+		return -1;
+	if (cmsg->cmsg_level != SOL_SOCKET)
+		return -1;
+	if (cmsg->cmsg_type != SCM_RIGHTS)
+		return -1;
+
+	memcpy(&ret, CMSG_DATA(cmsg), sizeof(ret));
 	return ret;
 }
