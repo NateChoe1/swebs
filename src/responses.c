@@ -16,6 +16,8 @@
    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include <features.h>
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -28,6 +30,9 @@
 
 #include <swebs/responses.h>
 #include <swebs/responseutil.h>
+
+char *realpath(char *, char *);
+/* I don't know why, but realpath breaks on debian. */
 
 static int readResponse(Connection *conn, char *path) {
 	int fd = -1;

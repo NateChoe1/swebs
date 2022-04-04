@@ -1,0 +1,4 @@
+define transport TCP
+define port 8000
+
+read .* /site/
