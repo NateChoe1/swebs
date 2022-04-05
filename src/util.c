@@ -19,8 +19,10 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <fcntl.h>
+#include <unistd.h>
 #include <sys/shm.h>
 #include <sys/socket.h>
 
@@ -164,4 +166,28 @@ int recvFd(int source) {
 
 	memcpy(&ret, CMSG_DATA(cmsg), sizeof(ret));
 	return ret;
+}
+
+int createTmpName(char *path) {
+	size_t len;
+	char possibleChars[] =
+		"abcdefghijklmnopqrstuvwxyz"
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		"0123456789";
+	len = strlen(path);
+	if (len < 5)
+		return 1;
+
+	for (;;) {
+		int i;
+		for (i = 0; i < 5; i++)
+			path[len - i - 1] =
+				possibleChars[rand() % sizeof(possibleChars)];
+
+		if (!faccessat(-1, path, F_OK, AT_EACCESS))
+			continue;
+		if (faccessat(-1, path, R_OK | W_OK, AT_EACCESS))
+			return 1;
+		return 0;
+	}
 }

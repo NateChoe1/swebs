@@ -31,9 +31,6 @@
 #include <swebs/responses.h>
 #include <swebs/responseutil.h>
 
-char *realpath(char *, char *);
-/* I don't know why, but realpath breaks on debian. */
-
 static int readResponse(Connection *conn, char *path) {
 	int fd = -1;
 	struct stat statbuf;

@@ -113,7 +113,7 @@ static void setsignal(int signal, void (*handler)(int)) {
 	action.sa_handler = handler;
 	action.sa_mask = sigset;
 	action.sa_flags = SA_NODEFER;
-	sigaction(SIGCHLD,  &action, NULL);
+	sigaction(signal,  &action, NULL);
 }
 
 int main(int argc, char **argv) {
@@ -136,10 +136,11 @@ int main(int argc, char **argv) {
 
 	mainfd = socket(AF_UNIX, SOCK_STREAM, 0);
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, tmpnam(NULL), sizeof(addr.sun_path) - 1);
-	/* I know that tmpname is deprecated, I think this usage is safe
-	 * though. */
+
+	strncpy(addr.sun_path, SERVER_PATH, sizeof(addr.sun_path) - 1);
 	addr.sun_path[sizeof(addr.sun_path) - 1] = '\0';
+	createTmpName(addr.sun_path);
+
 	bind(mainfd, (struct sockaddr *) &addr, sizeof(addr));
 	listen(mainfd, processes);
 
@@ -148,8 +149,23 @@ int main(int argc, char **argv) {
 		createProcess(i);
 
 	setsignal(SIGPIPE, SIG_IGN);
-	setsignal(SIGKILL, exitClean);
+	setsignal(SIGHUP, exitClean);
 	setsignal(SIGINT, exitClean);
+	setsignal(SIGQUIT, exitClean);
+	setsignal(SIGILL, exitClean);
+	setsignal(SIGTRAP, exitClean);
+	setsignal(SIGABRT, exitClean);
+	setsignal(SIGBUS, exitClean);
+	setsignal(SIGFPE, exitClean);
+	setsignal(SIGKILL, exitClean);
+	setsignal(SIGSEGV, exitClean);
+	setsignal(SIGTERM, exitClean);
+	setsignal(SIGTTIN, exitClean);
+	setsignal(SIGTTOU, exitClean);
+	setsignal(SIGURG, exitClean);
+	setsignal(SIGXCPU, exitClean);
+	setsignal(SIGXFSZ, exitClean);
+	setsignal(SIGPIPE, exitClean);
 	setsignal(SIGCHLD, remakeChild);
 
 	createLog("swebs started");

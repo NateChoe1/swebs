@@ -35,4 +35,19 @@ RequestType getType(char *str);
 
 void sendFd(int fd, int dest);
 int recvFd(int source);
+
+int createTmpName(char *path);
+/* WIll set the 5 characters at the end of path to random data so that that
+ * file does not exist. For example:
+ *
+ * char *path = "/some/path/to/some/dataXXXXX";
+ * createTmpName(path);
+ * puts(path);
+ *
+ * could output
+ *
+ * /some/path/to/some/data12ab6
+ *
+ * Returns non-zero on error, uses rand()
+ * */
 #endif
