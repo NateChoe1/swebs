@@ -1,0 +1,9 @@
+version: "3"
+services:
+  swebs:
+    image: natechoe/swebs
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./site/:/site/
+    working_dir: "/site/"

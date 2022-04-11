@@ -174,8 +174,7 @@ int main(int argc, char **argv) {
 		int fd;
 		int lowestProc;
 
-		fd = accept(listener->fd, (struct sockaddr *) &listener->addr,
-				&listener->addrlen);
+		fd = acceptConnection(listener);
 		if (fd < 0) {
 			if (errno == ENOTSOCK || errno == EOPNOTSUPP ||
 					errno == EINVAL) {

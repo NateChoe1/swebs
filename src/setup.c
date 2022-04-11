@@ -134,13 +134,13 @@ NULL
 	}
 
 	*site = parseSitefile(sitefile);
-	if (site == NULL) {
+	if (*site == NULL) {
 		fprintf(stderr, "Invalid sitefile %s\n", sitefile);
 		exit(EXIT_FAILURE);
 	}
 
 	*listener = createListener((*site)->port, backlog);
-	if (listener == NULL) {
+	if (*listener == NULL) {
 		fprintf(stderr, "Failed to create socket\n");
 		exit(EXIT_FAILURE);
 	}
