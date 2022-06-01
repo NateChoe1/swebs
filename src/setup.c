@@ -20,6 +20,7 @@
 #include <stdlib.h>
 
 #include <pwd.h>
+#include <errno.h>
 #include <unistd.h>
 
 #include <swebs/util.h>
@@ -160,7 +161,7 @@ NULL
 			createLog("Couldn't find swebs user");
 		else
 			if (seteuid(swebs->pw_uid))
-				createLog("seteuid() failed");
+				createErrorLog("seteuid() failed", errno);
 		root = getpwnam("root");
 		if (root == NULL) {
 			createLog("Couldn't find root user, quitting");

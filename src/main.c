@@ -48,10 +48,42 @@ static Sitefile *site;
 static struct sockaddr_un addr;
 /* We want to be able to handle a signal at any time, so some global variables
  * are needed. */
+static const int signals[] = {
+	SIGPIPE, SIGHUP, SIGINT, SIGQUIT, SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE,
+	SIGKILL, SIGSEGV, SIGTERM, SIGTTIN, SIGTTOU, SIGURG, SIGXCPU, SIGXFSZ, SIGPIPE,
+};
+
+static void exitClean(int signal) {
+	freeListener(listener);
+	close(mainfd);
+	remove(addr.sun_path);
+	exit(EXIT_SUCCESS);
+}
+
+static void setsignal(int signal, void (*handler)(int)) {
+	struct sigaction action;
+	sigset_t sigset;
+	sigemptyset(&sigset);
+	action.sa_handler = handler;
+	action.sa_mask = sigset;
+	action.sa_flags = SA_NODEFER;
+	sigaction(signal, &action, NULL);
+}
+
+static void unsetsignal(int signal) {
+	struct sigaction action;
+	sigset_t sigset;
+	sigemptyset(&sigset);
+	action.sa_handler = SIG_DFL;
+	action.sa_mask = sigset;
+	action.sa_flags = SA_NODEFER;
+	sigaction(signal, &action, NULL);
+}
 
 static void createProcess(int id) {
 	pid_t pid;
 	int connfd;
+	int i;
 	socklen_t addrlen;
 
 	createLog("Creating a new process");
@@ -60,7 +92,7 @@ static void createProcess(int id) {
 	pid = fork();
 	switch (pid) {
 		case -1:
-			createLog("fork() failed");
+			createErrorLog("fork() failed", errno);
 			exit(EXIT_FAILURE);
 		case 0:
 			break;
@@ -72,11 +104,15 @@ static void createProcess(int id) {
 			return;
 	}
 
+	for (i = 0; i < sizeof(signals) / sizeof(signals[0]); i++)
+		unsetsignal(signals[i]);
+	unsetsignal(SIGCHLD);
+
 	connfd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (connfd < 0)
 		exit(EXIT_FAILURE);
 	if (connect(connfd, (struct sockaddr *) &addr, sizeof(addr))) {
-		createLog("connect() failed, killing child");
+		createErrorLog("connect() failed, killing child", errno);
 		exit(EXIT_FAILURE);
 	}
 	close(mainfd);
@@ -99,23 +135,6 @@ static void remakeChild(int signal) {
 	}
 }
 
-static void exitClean(int signal) {
-	freeListener(listener);
-	close(mainfd);
-	remove(addr.sun_path);
-	exit(EXIT_SUCCESS);
-}
-
-static void setsignal(int signal, void (*handler)(int)) {
-	struct sigaction action;
-	sigset_t sigset;
-	sigemptyset(&sigset);
-	action.sa_handler = handler;
-	action.sa_mask = sigset;
-	action.sa_flags = SA_NODEFER;
-	sigaction(signal,  &action, NULL);
-}
-
 int main(int argc, char **argv) {
 	int i;
 	int pendingid;
@@ -124,12 +143,12 @@ int main(int argc, char **argv) {
 
 	pendingid = smalloc(sizeof(int) * (processes - 1));
 	if (pendingid < 0) {
-		createLog("smalloc() failed");
+		createErrorLog("smalloc() failed", errno);
 		exit(EXIT_FAILURE);
 	}
 	pending = saddr(pendingid);
 	if (pending == NULL) {
-		createLog("saddr() failed");
+		createErrorLog("saddr() failed", errno);
 		exit(EXIT_FAILURE);
 	}
 	memset(pending, 0, sizeof(int) * (processes - 1));
@@ -148,24 +167,9 @@ int main(int argc, char **argv) {
 	for (i = 0; i < processes - 1; i++)
 		createProcess(i);
 
-	setsignal(SIGPIPE, SIG_IGN);
-	setsignal(SIGHUP, exitClean);
-	setsignal(SIGINT, exitClean);
-	setsignal(SIGQUIT, exitClean);
-	setsignal(SIGILL, exitClean);
-	setsignal(SIGTRAP, exitClean);
-	setsignal(SIGABRT, exitClean);
-	setsignal(SIGBUS, exitClean);
-	setsignal(SIGFPE, exitClean);
-	setsignal(SIGKILL, exitClean);
-	setsignal(SIGSEGV, exitClean);
-	setsignal(SIGTERM, exitClean);
-	setsignal(SIGTTIN, exitClean);
-	setsignal(SIGTTOU, exitClean);
-	setsignal(SIGURG, exitClean);
-	setsignal(SIGXCPU, exitClean);
-	setsignal(SIGXFSZ, exitClean);
-	setsignal(SIGPIPE, exitClean);
+	for (i = 0; i < sizeof(signals) / sizeof(signals[0]); i++)
+		setsignal(signals[i], exitClean);
+
 	setsignal(SIGCHLD, remakeChild);
 
 	createLog("swebs started");
@@ -178,7 +182,8 @@ int main(int argc, char **argv) {
 		if (fd < 0) {
 			if (errno == ENOTSOCK || errno == EOPNOTSUPP ||
 					errno == EINVAL) {
-				createLog("You've majorly screwed up");
+				createErrorLog("You've majorly screwed up. Good luck",
+						errno);
 				exit(EXIT_FAILURE);
 			}
 			continue;

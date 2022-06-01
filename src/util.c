@@ -76,6 +76,25 @@ int createLog(char *msg) {
 	return 0;
 }
 
+int createErrorLog(char *msg, int err) {
+	time_t currenttime;
+	struct tm *timeinfo;
+	time(&currenttime);
+	timeinfo = gmtime(&currenttime);
+	if (timeinfo == NULL)
+		return 1;
+	fprintf(logs, "[%d-%02d-%02dT%02d:%02d:%02dZ] %s: %s\n",
+			timeinfo->tm_year + 1900,
+			timeinfo->tm_mon + 1,
+			timeinfo->tm_mday,
+			timeinfo->tm_hour,
+			timeinfo->tm_min,
+			timeinfo->tm_sec,
+			msg, strerror(err));
+	fflush(logs);
+	return 0;
+}
+
 int istrcmp(char *s1, char *s2) {
 	int i;
 	for (i = 0;; i++) {

@@ -29,6 +29,7 @@ void sfree(void *addr);
 void sdestroy(int id);
 
 int createLog(char *msg);
+int createErrorLog(char *msg, int err);
 int istrcmp(char *s1, char *s2);
 /* case insensitive strcmp */
 RequestType getType(char *str);
