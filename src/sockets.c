@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -82,15 +83,21 @@ Context *createContext(SocketType type, ...) {
 			certfile = va_arg(ap, char *);
 
 			if (gnutls_certificate_allocate_credentials(&ret->creds)
-					< 0)
+					< 0) {
+				createLog("gnutls_certificate_allocate_credentials() failed");
 				goto error;
+			}
 			if (gnutls_certificate_set_x509_key_file(ret->creds,
 					certfile, keyfile,
-					GNUTLS_X509_FMT_PEM) < 0)
+					GNUTLS_X509_FMT_PEM) < 0) {
+				createLog("gnutls_certificate_set_x509_key_file() failed");
 				goto error;
+			}
 			if (gnutls_priority_init(&ret->priority, NULL, NULL)
-					< 0)
+					< 0) {
+				createLog("gnutls_priority_init() failed");
 				goto error;
+			}
 #if GNUTLS_VERSION_NUMBER >= 0x030506
 			gnutls_certificate_set_known_dh_params(ret->creds,
 					GNUTLS_SEC_PARAM_MEDIUM);
@@ -101,8 +108,13 @@ Context *createContext(SocketType type, ...) {
 	va_end(ap);
 	return ret;
 error:
-	free(ret);
-	return NULL;
+	{
+		int olderrno;
+		olderrno = errno;
+		free(ret);
+		errno = olderrno;
+		return NULL;
+	}
 }
 
 int acceptConnection(Listener *listener) {

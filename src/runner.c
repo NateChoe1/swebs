@@ -21,6 +21,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include <pwd.h>
 #include <poll.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -53,6 +54,27 @@ void runServer(int connfd, Sitefile *site, Listener *listener,
 		default:
 			createLog("Socket type is somehow invalid");
 			return;
+	}
+	if (context == NULL) {
+		createErrorLog("Failed to create context", errno);
+		exit(EXIT_FAILURE);
+	}
+
+	{
+		struct passwd *swebs, *root;
+		swebs = getpwnam("swebs");
+		if (swebs == NULL)
+			createLog("Couldn't find swebs user");
+		else
+			if (seteuid(swebs->pw_uid))
+				createErrorLog("seteuid() failed", errno);
+		root = getpwnam("root");
+		if (root != NULL) {
+		/* I don't know why this if statement could be false but we have it
+		 * just in case. */
+			if (geteuid() == root->pw_uid)
+				createLog("swebs probably should not be run as root");
+		}
 	}
 
 	for (;;) {

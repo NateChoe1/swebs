@@ -19,7 +19,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-#include <pwd.h>
 #include <errno.h>
 #include <unistd.h>
 
@@ -152,24 +151,5 @@ NULL
 	if (initLogging(logout)) {
 		fprintf(stderr, "Couldn't open logs file %s\n", logout);
 		exit(EXIT_FAILURE);
-	}
-
-	{
-		struct passwd *swebs, *root;
-		swebs = getpwnam("swebs");
-		if (swebs == NULL)
-			createLog("Couldn't find swebs user");
-		else
-			if (seteuid(swebs->pw_uid))
-				createErrorLog("seteuid() failed", errno);
-		root = getpwnam("root");
-		if (root == NULL) {
-			createLog("Couldn't find root user, quitting");
-			exit(EXIT_FAILURE);
-		}
-		if (geteuid() == root->pw_uid) {
-			createLog("swebs should not be run as root");
-			exit(EXIT_FAILURE);
-		}
 	}
 }
