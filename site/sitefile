@@ -1,6 +1,7 @@
 define port 8000
 
 define transport TLS
+define transport TCP
 define key domain.key
 define cert domain.crt
 define timeout 2000
