@@ -79,6 +79,7 @@ typedef enum {
 	FILE_KNOWN_LENGTH,
 	FILE_UNKNOWN_LENGTH,
 	BUFFER,
+	BUFFER_NOFREE,
 	DEFAULT
 	/* Return the default value for this error code */
 } ResponseType;

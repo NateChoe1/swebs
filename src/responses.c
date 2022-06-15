@@ -130,11 +130,12 @@ static int linkedResponse(Connection *conn,
 		case FILE_UNKNOWN_LENGTH:
 			return sendPipe(conn->stream, getCode(code),
 					response.response.file.fd);
-		case BUFFER:
+		case BUFFER: case BUFFER_NOFREE:
 			ret = sendBinaryResponse(conn->stream, getCode(code),
 					response.response.buffer.data,
 					response.response.buffer.len);
-			free(response.response.buffer.data);
+			if (response.type == BUFFER)
+				free(response.response.buffer.data);
 			return ret;
 		case DEFAULT:
 			return sendErrorResponse(conn->stream, getCode(code));
