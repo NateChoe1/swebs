@@ -73,6 +73,8 @@ typedef enum {
 	/* A file where the total length is unknown (i.e. a pipe) */
 	BUFFER,
 	/* A buffer stored in memory. free() will be called on said buffer. */
+	BUFFER_NOFREE,
+	/* Same as BUFFER but free() won't be called */
 	DEFAULT
 	/* The default response for the response code */
 } ResponseType;
