@@ -175,40 +175,46 @@ error:
 }
 
 Sitefile *parseSitefile(char *path) {
-	FILE *file = fopen(path, "r");
+	FILE *file;
 	RequestType respondto = GET;
 	const int cflags = REG_EXTENDED | REG_ICASE;
 	char *host = NULL;
 	int argc;
 	char **argv;
-	int allocatedLength = 50;
-	char gotPort = 0;
 	Sitefile *ret;
+	unsigned short currport;
 
+	currport = 80;
+	file = fopen(path, "r");
 	if (file == NULL)
 		return NULL;
-	ret = malloc(sizeof(Sitefile));
-	if (ret == NULL)
-		return NULL;
-	ret->type = TCP;
-	ret->key = NULL;
-	ret->cert = NULL;
-	ret->timeout = 2000;
+	ret = xmalloc(sizeof *ret);
+
 	ret->size = 0;
-	ret->content = malloc(allocatedLength * sizeof(SiteCommand));
+	ret->alloc = 50;
+	ret->content = xmalloc(ret->alloc * sizeof *ret->content);
+	ret->portcount = 0;
+	ret->portalloc = 5;
+	ret->ports = xmalloc(ret->portalloc * sizeof *ret->ports);
 #if DYNAMIC_LINKED_PAGES
 	ret->getResponse = NULL;
 #endif
-	if (ret->content == NULL) {
-		free(ret);
-		return NULL;
-	}
+
 	for (;;) {
 		ReturnCode status = getCommand(file, &argc, &argv);
 		switch (status) {
+			int i;
 			case FILE_END:
-				if (!gotPort)
-					goto nterror;
+				for (i = 0; i < ret->portcount; ++i) {
+					Port *port = ret->ports + i;
+					if (port->type == TLS &&
+						(port->key == NULL ||
+						 port->cert == NULL)) {
+						fprintf(stderr,
+"Port %hu declared as TLS without proper TLS files\n", port->num);
+						goto nterror;
+					}
+				}
 				fclose(file);
 				return ret;
 			case ERROR: case LINE_END:
@@ -225,7 +231,9 @@ Sitefile *parseSitefile(char *path) {
 					goto error;
 			}
 			else if (strcmp(argv[1], "host") == 0)
-				host = strdup(argv[2]);
+				host = xstrdup(argv[2]);
+			else if (strcmp(argv[1], "port") == 0)
+				currport = atoi(argv[2]);
 			else
 				goto error;
 			continue;
@@ -233,31 +241,12 @@ Sitefile *parseSitefile(char *path) {
 		else if (strcmp(argv[0], "define") == 0) {
 			if (argc < 3)
 				goto error;
-			if (strcmp(argv[1], "transport") == 0) {
-				if (strcmp(argv[2], "TCP") == 0)
-					ret->type = TCP;
-				else if (strcmp(argv[2], "TLS") == 0)
-					ret->type = TLS;
-				else
-					goto error;
-			}
-			else if (strcmp(argv[1], "port") == 0) {
-				ret->port = atoi(argv[2]);
-				gotPort = 1;
-			}
-			else if (strcmp(argv[1], "key") == 0)
-				ret->key = strdup(argv[2]);
-			else if (strcmp(argv[1], "cert") == 0)
-				ret->cert = strdup(argv[2]);
-			else if (strcmp(argv[1], "timeout") == 0)
-				ret->timeout = atoi(argv[2]);
 			else if (strcmp(argv[1], "library") == 0) {
 #if DYNAMIC_LINKED_PAGES
 				ret->getResponse = loadGetResponse(argv[2]);
 #else
-				fprintf(stderr,
-"This version of swebs has no dynamic page support\n"
-				);
+				fputs(
+"This version of swebs has no dynamic page support\n", stderr);
 				exit(EXIT_FAILURE);
 #endif
 			}
@@ -265,11 +254,69 @@ Sitefile *parseSitefile(char *path) {
 				goto error;
 			continue;
 		}
-		if (ret->size >= allocatedLength) {
+		else if (strcmp(argv[0], "declare") == 0) {
+			Port newport;
+			int i;
+			if (argc < 3) {
+				fputs(
+"Usage: declare [transport] [port]\n", stderr);
+				goto error;
+			}
+			newport.num = atoi(argv[2]);
+
+			for (i = 0; i < ret->portcount; ++i) {
+				if (ret->ports[i].num == newport.num) {
+					fprintf(stderr,
+"Port %hu declared multiple times\n", newport.num);
+					goto error;
+				}
+			}
+
+			if (strcmp(argv[1], "TCP") == 0)
+				newport.type = TCP;
+			else if (strcmp(argv[1], "TLS") == 0)
+				newport.type = TLS;
+			else {
+				fprintf(stderr, "Invalid transport %s\n",
+						argv[1]);
+				goto error;
+			}
+			newport.timeout = 2000;
+			newport.key = newport.cert = NULL;
+			if (ret->portcount >= ret->portalloc) {
+				ret->portalloc *= 2;
+				ret->ports = xrealloc(ret->ports,
+					ret->portalloc * sizeof *ret->ports);
+			}
+			memcpy(ret->ports + ret->portcount, &newport,
+					sizeof newport);
+			++ret->portcount;
+			continue;
+		}
+#define PORT_ATTRIBUTE(name, func) \
+		else if (strcmp(argv[0], #name) == 0) { \
+			int i; \
+			unsigned short port; \
+			if (argc < 3) { \
+				fputs("Usage: " #name " [" #name "] [port]\n", \
+						stderr); \
+				goto error; \
+			} \
+			port = atoi(argv[2]); \
+			for (i = 0; i < ret->portcount; ++i) \
+				if (ret->ports[i].num == port) \
+					ret->ports[i].name = func(argv[1]); \
+			continue; \
+		}
+		PORT_ATTRIBUTE(key, xstrdup)
+		PORT_ATTRIBUTE(cert, xstrdup)
+		PORT_ATTRIBUTE(timeout, atoi)
+#undef PORT_ATTRIBUTE
+		if (ret->size >= ret->alloc) {
 			SiteCommand *newcontent;
-			allocatedLength *= 2;
-			newcontent = realloc(ret->content,
-					allocatedLength * sizeof(SiteCommand));
+			ret->alloc *= 2;
+			newcontent = realloc(ret->content, ret->alloc *
+					sizeof *newcontent);
 			if (newcontent == NULL)
 				goto error;
 			ret->content = newcontent;
@@ -282,7 +329,7 @@ Sitefile *parseSitefile(char *path) {
 		if (strcmp(argv[0], "read") == 0) {
 			if (argc < 3)
 				goto error;
-			ret->content[ret->size].arg = strdup(argv[2]);
+			ret->content[ret->size].arg = xstrdup(argv[2]);
 			if (ret->content[ret->size].arg == NULL)
 				goto error;
 			ret->content[ret->size].command = READ;
@@ -295,16 +342,26 @@ Sitefile *parseSitefile(char *path) {
 				goto error;
 			ret->content[ret->size].command = THROW;
 		}
-		else if (strcmp(argv[0], "linked") == 0)
+		else if (strcmp(argv[0], "linked") == 0) {
+#if DYNAMIC_LINKED_PAGES
 			ret->content[ret->size].command = LINKED;
-		else
+#else
+			fputs(
+"This version of swebs doesn't have linked page support", stderr);
 			goto error;
+#endif
+		}
+		else {
+			fprintf(stderr, "Unknown sitefile command %s", argv[0]);
+			goto error;
+		}
 		freeTokens(argc, argv);
 		ret->content[ret->size].respondto = respondto;
 		if (host == NULL)
 			regcomp(&ret->content[ret->size].host, ".*", cflags);
 		else
 			regcomp(&ret->content[ret->size].host, host, cflags);
+		ret->content[ret->size].port = currport;
 		ret->size++;
 	}
 error:

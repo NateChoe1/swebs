@@ -31,33 +31,42 @@
 #include <swebs/sitefile.h>
 #include <swebs/connections.h>
 
-void runServer(int connfd, Sitefile *site, Listener *listener,
-		int *pending, int id) {
+void runServer(int connfd, Sitefile *site, int *pending, int id,
+		ConnInfo *conninfo) {
 	int allocConns = 100;
-	struct pollfd *fds = malloc(sizeof(struct pollfd) * allocConns);
-	Connection *connections = malloc(sizeof(Connection) * allocConns);
-	int connCount = 1;
-	/* connections are 1 indexed because fds[0] is the notify fd. */
-	Context *context;
-	assert(fds != NULL);
-	assert(connections != NULL);
+	struct pollfd *fds;
+	Connection *connections;
+	int connCount;
+	Context **contexts;
+	int i;
+
+	connCount = 1;
+	fds = xmalloc(allocConns * sizeof *fds);
+	connections = xmalloc(allocConns * sizeof *connections);
 	fds[0].fd = connfd;
 	fds[0].events = POLLIN;
+	/* connections are 1 indexed because fds[0] is the notify fd. I hate
+	 * that poll() forces us to do these hacks. */
 
-	switch (site->type) {
-		case TCP:
-			context = createContext(TCP);
-			break;
-		case TLS:
-			context = createContext(TLS, site->key, site->cert);
-			break;
-		default:
-			createLog("Socket type is somehow invalid");
-			return;
-	}
-	if (context == NULL) {
-		createErrorLog("Failed to create context", errno);
-		exit(EXIT_FAILURE);
+	contexts = xmalloc(site->portcount * sizeof *contexts);
+
+	for (i = 0; i < site->portcount; ++i) {
+		Port *port = site->ports + i;
+		switch (port->type) {
+			case TCP:
+				contexts[i] = createContext(TCP);
+				break;
+			case TLS:
+				contexts[i] = createContext(TLS, port->key, port->cert);
+				break;
+			default:
+				createLog("Socket type is somehow invalid");
+				return;
+		}
+		if (contexts[i] == NULL) {
+			createErrorLog("Failed to create context", errno);
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	{
@@ -78,7 +87,6 @@ void runServer(int connfd, Sitefile *site, Listener *listener,
 	}
 
 	for (;;) {
-		int i;
 		poll(fds, connCount, -1);
 		{
 			char log[200];
@@ -105,17 +113,22 @@ remove:
 		if (fds[0].revents & POLLIN) {
 			Stream *newstream;
 			int newfd;
+			int portind;
 			newfd = recvFd(connfd);
 			if (newfd < 0) {
 				createLog("Message received that included an invalid fd");
 				continue;
 			}
+			while (conninfo->valid == 0) ;
+			portind = conninfo->portind;
+			conninfo->valid = 0;
 
 			createLog("Obtained file descriptor from child");
 
-			newstream = createStream(context, O_NONBLOCK, newfd);
+			newstream = createStream(contexts[portind], O_NONBLOCK, newfd);
 			if (newstream == NULL) {
-				createLog("Stream couldn't be created from file descriptor");
+				createLog(
+"Stream couldn't be created from file descriptor");
 				close(newfd);
 				continue;
 			}
@@ -141,7 +154,7 @@ remove:
 				connections = newconns;
 			}
 
-			if (newConnection(newstream, connections + connCount)) {
+			if (newConnection(newstream, connections + connCount, portind)) {
 				createLog("Couldn't initialize connection from stream");
 				continue;
 			}

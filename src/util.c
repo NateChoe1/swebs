@@ -57,6 +57,36 @@ void sdestroy(int id) {
 	shmctl(id, IPC_RMID, 0);
 }
 
+void *xmalloc(size_t size) {
+	void *ret;
+	ret = malloc(size);
+	if (ret == NULL) {
+		fputs("xmalloc() failed\n", stderr);
+		exit(EXIT_FAILURE);
+	}
+	return ret;
+}
+
+void *xrealloc(void *ptr, size_t size) {
+	void *ret;
+	ret = realloc(ptr, size);
+	if (ret == NULL) {
+		fputs("xrealloc() failed\n", stderr);
+		exit(EXIT_FAILURE);
+	}
+	return ret;
+}
+
+char *xstrdup(char *str) {
+	char *ret;
+	ret = strdup(str);
+	if (ret == NULL) {
+		fputs("xstrdup() failed\n", stderr);
+		exit(EXIT_FAILURE);
+	}
+	return ret;
+}
+
 int createLog(char *msg) {
 	time_t currenttime;
 	struct tm *timeinfo;

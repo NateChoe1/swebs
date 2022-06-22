@@ -20,6 +20,7 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include <poll.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -41,11 +42,11 @@ typedef struct {
 
 static Runner *runners;
 static int processes;
-static int mainfd;
 static int *pending;
-static Listener *listener;
 static Sitefile *site;
+static int mainfd; /* fd of the UNIX socket */
 static struct sockaddr_un addr;
+static ConnInfo *conninfo;
 /* We want to be able to handle a signal at any time, so some global variables
  * are needed. */
 static const int signals[] = {
@@ -54,7 +55,6 @@ static const int signals[] = {
 };
 
 static void exitClean(int signal) {
-	freeListener(listener);
 	close(mainfd);
 	remove(addr.sun_path);
 	exit(EXIT_SUCCESS);
@@ -109,14 +109,16 @@ static void createProcess(int id) {
 	unsetsignal(SIGCHLD);
 
 	connfd = socket(AF_UNIX, SOCK_STREAM, 0);
-	if (connfd < 0)
+	if (connfd < 0) {
+		createErrorLog("socket() failed, killing child", errno);
 		exit(EXIT_FAILURE);
+	}
 	if (connect(connfd, (struct sockaddr *) &addr, sizeof(addr))) {
 		createErrorLog("connect() failed, killing child", errno);
 		exit(EXIT_FAILURE);
 	}
 	close(mainfd);
-	runServer(connfd, site, listener, pending, id);
+	runServer(connfd, site, pending, id, conninfo);
 	createLog("child runServer() finished");
 	exit(EXIT_SUCCESS);
 }
@@ -138,8 +140,24 @@ static void remakeChild(int signal) {
 int main(int argc, char **argv) {
 	int i;
 	int pendingid;
+	int backlog;
+	int conninfoid;
+	Listener **listeners;
+	struct pollfd *pollfds;
 
-	setup(argc, argv, &site, &listener, &processes);
+	setup(argc, argv, &site, &processes, &backlog);
+
+	listeners = xmalloc(site->portcount * sizeof *listeners);
+	pollfds = xmalloc(site->portcount * sizeof *pollfds);
+	for (i = 0; i < site->portcount; ++i) {
+		listeners[i] = createListener(site->ports[i].num, backlog);
+		if (listeners[i] == NULL) {
+			fprintf(stderr, "Failed to listen on port %hu\n",
+					site->ports[i].num);
+		}
+		pollfds[i].fd = listenerfd(listeners[i]);
+		pollfds[i].events = POLLIN;
+	}
 
 	pendingid = smalloc(sizeof(int) * (processes - 1));
 	if (pendingid < 0) {
@@ -151,6 +169,18 @@ int main(int argc, char **argv) {
 		createErrorLog("saddr() failed", errno);
 		exit(EXIT_FAILURE);
 	}
+
+	conninfoid = smalloc(sizeof *conninfo);
+	if (conninfoid < 0) {
+		createErrorLog("smalloc() failed", errno);
+		exit(EXIT_FAILURE);
+	}
+	conninfo = saddr(conninfoid);
+	if (conninfo == NULL) {
+		createErrorLog("saddr() failed", errno);
+		exit(EXIT_FAILURE);
+	}
+
 	memset(pending, 0, sizeof(int) * (processes - 1));
 
 	mainfd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -175,25 +205,29 @@ int main(int argc, char **argv) {
 	createLog("swebs started");
 
 	for (;;) {
-		int fd;
-		int lowestProc;
-
-		fd = acceptConnection(listener);
-		if (fd < 0) {
-			if (errno == ENOTSOCK || errno == EOPNOTSUPP ||
-					errno == EINVAL) {
-				createErrorLog("You've majorly screwed up. Good luck",
-						errno);
-				exit(EXIT_FAILURE);
-			}
-			continue;
+		if (poll(pollfds, site->portcount, -1) < 0) {
+			if (errno == EINTR)
+				continue;
+			createErrorLog("You've majorly screwed up. Good luck",
+					errno);
+			exit(EXIT_FAILURE);
 		}
+
 		createLog("Accepted stream");
 
-		lowestProc = 0;
-		for (i = 1; i < processes - 1; i++)
-			if (pending[i] < pending[lowestProc])
-				lowestProc = i;
-		sendFd(fd, runners[lowestProc].fd);
+		for (i = 0; i < site->portcount; ++i) {
+			if (pollfds[i].revents & POLLIN) {
+				int j, lowestproc, fd;
+				fd = acceptConnection(listeners[i]);
+				while (conninfo->valid) ;
+				lowestproc = 0;
+				for (j = 0; j < processes - 1; j++)
+					if (pending[j] < pending[lowestproc])
+						lowestproc = j;
+				conninfo->portind = i;
+				conninfo->valid = 1;
+				sendFd(fd, runners[lowestproc].fd);
+			}
+		}
 	}
 }

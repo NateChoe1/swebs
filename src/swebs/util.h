@@ -28,6 +28,12 @@ void *saddr(int id);
 void sfree(void *addr);
 void sdestroy(int id);
 
+void *xmalloc(size_t size);
+void *xrealloc(void *ptr, size_t size);
+char *xstrdup(char *str);
+/* These functions should only be used during setup (reading sitefiles and such)
+ * and not real runtime. */
+
 int createLog(char *msg);
 int createErrorLog(char *msg, int err);
 int istrcmp(char *s1, char *s2);

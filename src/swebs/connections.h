@@ -57,6 +57,8 @@ typedef struct Connection {
 	/* persistent */
 	size_t currLineAlloc;
 	size_t currLineLen;
+
+	int portind;
 } Connection;
 /*
  * The 2 types of fields:
@@ -65,7 +67,7 @@ typedef struct Connection {
  * request, path, body
  * */
 
-int newConnection(Stream *stream, Connection *ret);
+int newConnection(Stream *stream, Connection *ret, int portind);
 /* returns non-zero on error. */
 void resetConnection(Connection *conn);
 void freeConnection(Connection *conn);

@@ -66,6 +66,10 @@ error:
 	return NULL;
 }
 
+int listenerfd(Listener *listener) {
+	return listener->fd;
+}
+
 Context *createContext(SocketType type, ...) {
 	Context *ret;
 	va_list ap;

@@ -29,21 +29,32 @@ typedef enum {
 } Command;
 
 typedef struct {
+	SocketType type;
+	unsigned short num;
+	int timeout;
+	char *key;
+	char *cert;
+	/* key and cert are possible unused */
+} Port;
+
+typedef struct {
 	RequestType respondto;
 	regex_t host;
 	Command command;
 	regex_t path;
 	char *arg;
+	unsigned short port;
 } SiteCommand;
 
 typedef struct {
-	int size;
+	size_t size;
+	size_t alloc;
 	SiteCommand *content;
-	SocketType type;
-	char *key;
-	char *cert;
-	int timeout;
-	unsigned short port;
+
+	size_t portcount;
+	size_t portalloc;
+	Port *ports;
+
 #if DYNAMIC_LINKED_PAGES
 	int (*getResponse)(Request *, Response *);
 #endif

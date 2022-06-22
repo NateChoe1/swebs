@@ -16,6 +16,10 @@ sitefiles also allow comments with #
 * ```read [http path] [file path]``` - if the requested path matches ```[http path]```, return the contents of ```[file path]```. If [file path] is a directory, then the http path is appended to [file path] and that is read instead.
 * ```linked``` - Run getResponse() from the library loaded from the library global variable
 * ```throw [http path] [error code]``` - If the requested path matches ```[http path]```, send back the http error code ```[error code]```. For standardization purposes, these error codes are just the number.
+* ```declare [transport] [port]``` - Declares that port ```[port]``` will be used with transport ```[transport]``` where ```[transport]``` is one of ```TCP```, ```TLS```
+* ```key [key file] [port]``` - Sets the key file for port ```[port]``` to ```[key file]```
+* ```cert [cert file] [port]``` - Sets the certificate file for port ```[port]``` to ```[cert file]```
+* ```timeout [timeout] [port]``` - Sets the connection timeout for port ```[port]``` to ```[timeout]``` milliseconds
 
 ##### Other than set, commands should take in a regex as argument 1 and operate on a file specified in argument 2.
 
@@ -25,14 +29,8 @@ sitefiles also allow comments with #
 	* GET (defualt)
 	* POST
 * ```host``` - The hostname to respond to. Case insensitive regex, default: .*
+* ```port``` - The port to respond to, default: 80
 
 # Part 4: Global variables
 
-* ```port``` - the port to use. Note that this is a global variable, and so one instance of swebs cannot use multiple ports.
-* ```transport``` - the type of connection to use. One of:
-	* TCP (default)
-	* TLS
-* ```key``` - The filepath of the private key to use if transport == TLS
-* ```cert``` - The filepath of the certificate to use if transport == TLS
-* ```timeout``` - The amount of time to wait for data before closing the connection in ms. A timeout of 0 means to wait infinitely. (default: 2000)
 * ```library``` - the path of a library that is linked in during runtime if ```DYNAMIC_LINKED_PAGES```is set.

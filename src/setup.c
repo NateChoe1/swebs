@@ -58,15 +58,15 @@ static void printLongMessage(char *first, ...) {
 	va_end(ap);
 }
 
-void setup(int argc, char **argv,
-		Sitefile **site, Listener **listener, int *processes) {
+void setup(int argc, char **argv, Sitefile **site, int *processes,
+		int *backlog) {
 	char *logout = "/var/log/swebs.log";
 	char *sitefile = NULL;
-	int backlog = 100;
 	char shouldDaemonize = 0;
 	char *pidfile = "/run/swebs.pid";
 
 	*processes = sysconf(_SC_NPROCESSORS_ONLN) + 1;
+	*backlog = 100;
 
 	for (;;) {
 		int c = getopt(argc, argv, "o:j:s:b:c:Bp:hl");
@@ -83,7 +83,7 @@ void setup(int argc, char **argv,
 				sitefile = optarg;
 				break;
 			case 'b':
-				backlog = atoi(optarg);
+				*backlog = atoi(optarg);
 				break;
 			case 'B':
 				shouldDaemonize = 1;
@@ -136,12 +136,6 @@ NULL
 	*site = parseSitefile(sitefile);
 	if (*site == NULL) {
 		fprintf(stderr, "Invalid sitefile %s\n", sitefile);
-		exit(EXIT_FAILURE);
-	}
-
-	*listener = createListener((*site)->port, backlog);
-	if (*listener == NULL) {
-		fprintf(stderr, "Failed to create socket\n");
 		exit(EXIT_FAILURE);
 	}
 

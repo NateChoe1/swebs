@@ -27,7 +27,7 @@
 #include <swebs/responses.h>
 #include <swebs/connections.h>
 
-int newConnection(Stream *stream, Connection *ret) {
+int newConnection(Stream *stream, Connection *ret, int portind) {
 	struct timespec currentTime;
 
 	ret->stream = stream;
@@ -68,6 +68,8 @@ int newConnection(Stream *stream, Connection *ret) {
 		return 1;
 	}
 	memcpy(&ret->lastdata, &currentTime, sizeof(struct timespec));
+
+	ret->portind = portind;
 	return 0;
 }
 
@@ -360,10 +362,11 @@ int updateConnection(Connection *conn, Sitefile *site) {
 		ssize_t received;
 		unsigned long i;
 		struct timespec currentTime;
+		const Port *port = site->ports + conn->portind;
 		if (clock_gettime(CLOCK_MONOTONIC, &currentTime) < 0)
 			return 1;
-		if (site->timeout > 0 &&
-		    diff(&conn->lastdata, &currentTime) > site->timeout)
+		if (port->timeout > 0 &&
+		    diff(&conn->lastdata, &currentTime) > port->timeout)
 			return 1;
 		received = recvStream(conn->stream, buff, sizeof(buff));
 		if (received < 0)

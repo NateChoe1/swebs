@@ -1,21 +1,49 @@
-define port 8000
+declare TCP 8000
+declare TLS 8001
+# We will use ports 8000 and 8001 with TCP and TLS respectively
 
-define transport TLS
-define transport TCP
-define key domain.key
-define cert domain.crt
-define timeout 2000
+key domain.key 8001
+cert domain.crt 8001
+# Port 8001 can have TLS, but it's self signed and very bad.
+
+timeout 2000 8000
+timeout 2000 8001
+# Set these values for the ports
+
+set port 8000
+# The following pages will respond to port 8000
+
 define library ./library.so
+# Library calls should use ./library.so
 
 set host localhost:8000
+# The following pages will respond to the host localhost:8000
 read / site/index.html
+# The path / should be read from site/index.html
 read /hello  site/hello.html
+# The path /hello should be read from site/hello.html
+
 throw /blog/forbidden 403
+# The path /blog/forbidden should throw error code 403
 read /blog/.* site/blog/
-#/blog/2021-1-25.html turns into site/blog//blog/2021-1-25.html
+# /blog/2021-1-25.html turns into site/blog//blog/2021-1-25.html
 linked /library
+# The path /library should be dynamically loaded from the library (library.so)
+
 set host 127.0.0.1:8000
+# The following pages will respond to the host 127.0.0.1:8000
+
 read / site/easteregg.html
+# The path / should be read from site/easteregg.html
 read /egg.png site/egg.png
+# The path /egg.png should be read from site/egg.png
 set host .*
+# The following pages will respond to all hosts (regex)
 read /alldomains site/alldomains.html
+# The path /alldomains should be read from /site/alldomains.html
+
+set port 8001
+# The following pages will respond to port 8001
+
+read / site/8001.html
+# The path / should be read from site/8001.html

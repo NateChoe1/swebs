@@ -21,8 +21,8 @@
 #include <swebs/sockets.h>
 #include <swebs/sitefile.h>
 
-void setup(int argc, char **argv,
-		Sitefile **site, Listener **listener, int *processes);
+void setup(int argc, char **argv, Sitefile **site, int *processes,
+		int *backlog);
 /* Setup parses args, utilizes them, and returns only what is needed in the
  * main loop. */
 

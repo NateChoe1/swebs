@@ -45,6 +45,7 @@ typedef struct {
 
 int initTLS();
 Listener *createListener(uint16_t port, int backlog);
+int listenerfd(Listener *listener);
 Context *createContext(SocketType type, ...);
 /*
  * extra arguments depend on type (similar to fcntl):

@@ -23,6 +23,14 @@
 #include <swebs/sitefile.h>
 #include <swebs/connections.h>
 
-void runServer(int connfd, Sitefile *site, Listener *listener,
-		int *pending, int id);
+typedef struct {
+	int valid;
+	int portind;
+} ConnInfo;
+
+void runServer(int connfd, Sitefile *site, int *pending, int id,
+		ConnInfo *info);
+/* pending and info are shared memory. pending[id] is the amount of connections
+ * that are being processed by that process, and info contains info about the
+ * connection being sent through. */
 #endif
