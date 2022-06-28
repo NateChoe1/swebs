@@ -43,7 +43,8 @@ typedef struct {
 	Command command;
 	regex_t path;
 	char *arg;
-	unsigned short port;
+	unsigned short *ports;
+	int portcount;
 } SiteCommand;
 
 typedef struct {

@@ -143,22 +143,30 @@ Stream *createStream(Context *context, int flags, int fd) {
 		case TCP: default:
 			break;
 		case TLS:
-			if (gnutls_init(&ret->session, GNUTLS_SERVER) < 0)
+			if (gnutls_init(&ret->session, GNUTLS_SERVER) < 0) {
+				createErrorLog("gnutls_init() failed", errno);
 				goto error;
+			}
 			if (gnutls_priority_set(ret->session,
-					context->priority) < 0)
+					context->priority) < 0) {
+				createErrorLog("gnutls_priority_set() failed", errno);
 				goto error;
+			}
 			if (gnutls_credentials_set(ret->session,
 					GNUTLS_CRD_CERTIFICATE,
-					context->creds) < 0)
+					context->creds) < 0) {
+				createErrorLog("gnutls_credentials_set() failed", errno);
 				goto error;
+			}
 			gnutls_certificate_server_set_request(ret->session,
 					GNUTLS_CERT_IGNORE);
 			gnutls_handshake_set_timeout(ret->session,
 					GNUTLS_DEFAULT_HANDSHAKE_TIMEOUT);
 			gnutls_transport_set_int(ret->session, ret->fd);
-			if (gnutls_handshake(ret->session) < 0)
+			if (gnutls_handshake(ret->session) < 0) {
+				createErrorLog("gnutls_handshake() failed", errno);
 				goto error;
+			}
 			break;
 	}
 	return ret;

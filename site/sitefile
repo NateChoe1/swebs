@@ -30,15 +30,13 @@ read /blog/.* site/blog/
 linked /library
 # The path /library should be dynamically loaded from the library (library.so)
 
-set host 127.0.0.1:8000
-# The following pages will respond to the host 127.0.0.1:8000
+set host .*
+# The following pages will respond to the host .* (any host)
 
 read / site/easteregg.html
 # The path / should be read from site/easteregg.html
 read /egg.png site/egg.png
 # The path /egg.png should be read from site/egg.png
-set host .*
-# The following pages will respond to all hosts (regex)
 read /alldomains site/alldomains.html
 # The path /alldomains should be read from /site/alldomains.html
 
@@ -47,3 +45,7 @@ set port 8001
 
 read / site/8001.html
 # The path / should be read from site/8001.html
+
+set port 8000,8001
+
+read /shared site/shared.html

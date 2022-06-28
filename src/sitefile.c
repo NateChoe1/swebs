@@ -174,6 +174,45 @@ error:
 	return ERROR;
 }
 
+static char *getport(char *data, unsigned short *ret) {
+	*ret = 0;
+	while (isdigit(data[0])) {
+		*ret *= 10;
+		*ret += data[0] - '0';
+		++data;
+	}
+	if (data[0] == ',')
+		return data + 1;
+	if (data[0] != '\0')
+		return NULL;
+	return data;
+}
+
+static int getports(unsigned short **ports, int *portcount, char *data) {
+	int alloc;
+	alloc = 10;
+	*portcount = 0;
+	*ports = xmalloc(alloc * sizeof **ports);
+	for (;;) {
+		if (data[0] == '\0')
+			return 0;
+		if (*portcount >= alloc) {
+			alloc *= 2;
+			*ports = xrealloc(*ports, alloc * sizeof **ports);
+		}
+		{
+			unsigned short newport;
+			data = getport(data, &newport);
+			(*ports)[*portcount] = newport;
+			++*portcount;
+		}
+		if (data == NULL) {
+			free(*ports);
+			return 1;
+		}
+	}
+}
+
 Sitefile *parseSitefile(char *path) {
 	FILE *file;
 	RequestType respondto = GET;
@@ -182,13 +221,17 @@ Sitefile *parseSitefile(char *path) {
 	int argc;
 	char **argv;
 	Sitefile *ret;
-	unsigned short currport;
+	unsigned short *ports;
+	int portcount;
 
-	currport = 80;
 	file = fopen(path, "r");
 	if (file == NULL)
 		return NULL;
 	ret = xmalloc(sizeof *ret);
+
+	ports = malloc(sizeof *ports);
+	ports[0] = 80;
+	portcount = 1;
 
 	ret->size = 0;
 	ret->alloc = 50;
@@ -205,6 +248,7 @@ Sitefile *parseSitefile(char *path) {
 		switch (status) {
 			int i;
 			case FILE_END:
+				free(ports);
 				for (i = 0; i < ret->portcount; ++i) {
 					Port *port = ret->ports + i;
 					if (port->type == TLS &&
@@ -232,8 +276,14 @@ Sitefile *parseSitefile(char *path) {
 			}
 			else if (strcmp(argv[1], "host") == 0)
 				host = xstrdup(argv[2]);
-			else if (strcmp(argv[1], "port") == 0)
-				currport = atoi(argv[2]);
+			else if (strcmp(argv[1], "port") == 0) {
+				free(ports);
+				if (getports(&ports, &portcount, argv[2])) {
+					fprintf(stderr, "Invalid port list %s\n",
+							argv[2]);
+					goto error;
+				}
+			}
 			else
 				goto error;
 			continue;
@@ -361,7 +411,12 @@ Sitefile *parseSitefile(char *path) {
 			regcomp(&ret->content[ret->size].host, ".*", cflags);
 		else
 			regcomp(&ret->content[ret->size].host, host, cflags);
-		ret->content[ret->size].port = currport;
+
+		ret->content[ret->size].ports = xmalloc(portcount *
+				sizeof *ret->content[ret->size].ports);
+		memcpy(ret->content[ret->size].ports, ports, portcount * sizeof *ports);
+		ret->content[ret->size].portcount = portcount;
+
 		ret->size++;
 	}
 error:

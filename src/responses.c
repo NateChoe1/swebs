@@ -168,6 +168,15 @@ int sendResponse(Connection *conn, Sitefile *site) {
 			continue;
 		if (fullmatch(&site->content[i].host, host))
 			continue;
+		{
+			int j;
+			const unsigned short currport = site->ports[conn->portind].num;
+			for (j = 0; j < site->content[i].portcount; ++j)
+				if (site->content[i].ports[j] == currport)
+					goto foundport;
+			continue;
+		}
+foundport:
 		if (fullmatch(&site->content[i].path, conn->path.data) == 0) {
 			switch (site->content[i].command) {
 				case READ:
