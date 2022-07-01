@@ -45,6 +45,7 @@ int newConnection(Stream *stream, Connection *ret, int portind) {
 		free(ret->currLine);
 		return 1;
 	}
+	ret->fieldCount = 0;
 
 	ret->allocatedPathFields = 10;
 	ret->pathFields = malloc(ret->allocatedPathFields * sizeof(PathField));
@@ -76,27 +77,35 @@ int newConnection(Stream *stream, Connection *ret, int portind) {
 void resetConnection(Connection *conn) {
 	long i;
 	conn->progress = RECEIVE_REQUEST;
-	conn->fieldCount = 0;
 	free(conn->body);
 	conn->body = NULL;
-	conn->pathFieldCount = 0;
+	for (i = 0; i < conn->fieldCount; i++) {
+		free(conn->fields[i].field);
+		free(conn->fields[i].value);
+	}
+	conn->fieldCount = 0;
 	for (i = 0; i < conn->pathFieldCount; i++) {
 		free(conn->pathFields[i].var.data);
 		free(conn->pathFields[i].value.data);
 	}
+	conn->pathFieldCount = 0;
 }
 
 void freeConnection(Connection *conn) {
 	long i;
 	freeStream(conn->stream);
 	free(conn->currLine);
-	free(conn->fields);
 	free(conn->body);
 	for (i = 0; i < conn->fieldCount; i++) {
 		free(conn->pathFields[i].var.data);
 		free(conn->pathFields[i].value.data);
 	}
+	for (i = 0; i < conn->pathFieldCount; i++) {
+		free(conn->pathFields[i].var.data);
+		free(conn->pathFields[i].value.data);
+	}
 	free(conn->pathFields);
+	free(conn->fields);
 }
 
 static int createBinaryString(BinaryString *ret) {
@@ -265,15 +274,21 @@ static int processField(Connection *conn) {
 	Field *newfields;
 	if (conn->currLineLen == 0) {
 		conn->progress = RECEIVE_BODY;
-		conn->bodylen = 0;
 		for (i = 0; i < conn->fieldCount; i++) {
 			if (strcmp(conn->fields[i].field,
-			           "Content-Length") == 0)
+			           "Content-Length") == 0) {
 				conn->bodylen = atol(conn->fields[i].value);
+				goto foundlen;
+			}
 		}
+		conn->bodylen = 0;
+		conn->body = NULL;
+		goto lendone;
+foundlen:
 		conn->body = malloc(conn->bodylen);
 		if (conn->body == NULL)
 			return 1;
+lendone:
 		conn->receivedBody = 0;
 		return 0;
 	}
@@ -294,12 +309,18 @@ static int processField(Connection *conn) {
 		return 1;
 
 	field = malloc(split - line + 1);
+	if (field == NULL)
+		return 1;
 	memcpy(field, line, split - line);
 	field[split - line] = '\0';
 
 	linelen -= split - line + 2;
 	line += split - line + 2;
 	value = malloc(linelen + 1);
+	if (value == NULL) {
+		free(field);
+		return 1;
+	}
 	memcpy(value, line, linelen + 1);
 
 	conn->fields[conn->fieldCount].field = field;
@@ -321,11 +342,10 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 				return 1;
 			conn->currLine = newline;
 		}
-		conn->currLine[conn->currLineLen++] = c;
 		if (c == '\n') {
-			if (--conn->currLineLen <= 0)
+			if (--conn->currLineLen < 0)
 				return 1;
-			if (conn->currLine[--conn->currLineLen] != '\r')
+			if (conn->currLine[conn->currLineLen] != '\r')
 				return 1;
 			conn->currLine[conn->currLineLen] = '\0';
 			if (conn->progress == RECEIVE_REQUEST) {
@@ -338,6 +358,8 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 			}
 			conn->currLineLen = 0;
 		}
+		else
+			conn->currLine[conn->currLineLen++] = c;
 	}
 	else if (conn->progress == RECEIVE_BODY) {
 		if (conn->receivedBody < conn->bodylen)
@@ -366,8 +388,9 @@ int updateConnection(Connection *conn, Sitefile *site) {
 		if (clock_gettime(CLOCK_MONOTONIC, &currentTime) < 0)
 			return 1;
 		if (port->timeout > 0 &&
-		    diff(&conn->lastdata, &currentTime) > port->timeout)
+		    diff(&conn->lastdata, &currentTime) > port->timeout) {
 			return 1;
+		}
 		received = recvStream(conn->stream, buff, sizeof(buff));
 		if (received < 0)
 			return errno != EAGAIN;

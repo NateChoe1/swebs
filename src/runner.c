@@ -102,12 +102,13 @@ void runServer(int connfd, Sitefile *site, int *pending, int id,
 			continue;
 remove:
 			freeConnection(connections + i);
-			connCount--;
+			--connCount;
 			memcpy(fds + i, fds + connCount - 1,
 					sizeof(struct pollfd));
 			memcpy(connections + i, fds + connCount,
 					sizeof(struct pollfd));
-			pending[id]--;
+			--pending[id];
+			--i;
 		}
 
 		if (fds[0].revents & POLLIN) {
