@@ -22,6 +22,7 @@
 
 #include <unistd.h>
 
+#include <swebs/util.h>
 #include <swebs/responseutil.h>
 
 #define CONST_FIELDS "Server: swebs/0.1\r\n"
@@ -29,8 +30,12 @@
 static int resilientSend(Stream *stream, void *data, size_t len) {
 	char *buffer = (char *) data;
 	size_t left = len;
+
 	while (left) {
-		ssize_t sent = sendStream(stream, buffer, left);
+		ssize_t sent;
+
+		sent = sendStream(stream, buffer, left);
+
 		if (sent < 0)
 			return 1;
 		if (sent == 0)

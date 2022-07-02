@@ -51,33 +51,13 @@ static ConnInfo *conninfo;
  * are needed. */
 static const int signals[] = {
 	SIGPIPE, SIGHUP, SIGINT, SIGQUIT, SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE,
-	SIGKILL, SIGSEGV, SIGTERM, SIGTTIN, SIGTTOU, SIGURG, SIGXCPU, SIGXFSZ, SIGPIPE,
+	SIGKILL, SIGSEGV, SIGTERM, SIGTTIN, SIGTTOU, SIGURG, SIGXCPU, SIGXFSZ,
 };
 
 static void exitClean(int signal) {
 	close(mainfd);
 	remove(addr.sun_path);
 	exit(EXIT_SUCCESS);
-}
-
-static void setsignal(int signal, void (*handler)(int)) {
-	struct sigaction action;
-	sigset_t sigset;
-	sigemptyset(&sigset);
-	action.sa_handler = handler;
-	action.sa_mask = sigset;
-	action.sa_flags = SA_NODEFER;
-	sigaction(signal, &action, NULL);
-}
-
-static void unsetsignal(int signal) {
-	struct sigaction action;
-	sigset_t sigset;
-	sigemptyset(&sigset);
-	action.sa_handler = SIG_DFL;
-	action.sa_mask = sigset;
-	action.sa_flags = SA_NODEFER;
-	sigaction(signal, &action, NULL);
 }
 
 static void createProcess(int id) {
@@ -156,6 +136,7 @@ int main(int argc, char **argv) {
 		if (listeners[i] == NULL) {
 			fprintf(stderr, "Failed to listen on port %hu\n",
 					site->ports[i].num);
+			exit(EXIT_FAILURE);
 		}
 		pollfds[i].fd = listenerfd(listeners[i]);
 		pollfds[i].events = POLLIN;

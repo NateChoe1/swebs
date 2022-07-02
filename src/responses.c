@@ -180,23 +180,25 @@ foundport:
 		if (fullmatch(&site->content[i].path, conn->path.data) == 0) {
 			switch (site->content[i].command) {
 				case READ:
-					readResponse(conn,
-							site->content[i].arg);
+					if (readResponse(conn,
+							site->content[i].arg))
+						return 1;
 					break;
 				case THROW:
-					sendErrorResponse(conn->stream,
-							site->content[i].arg);
+					if (sendErrorResponse(conn->stream,
+							site->content[i].arg))
+						return 1;
 					break;
 				case LINKED:
 #if DYNAMIC_LINKED_PAGES
 					if (!site->getResponse)
 						sendErrorResponse(conn->stream,
 								ERROR_500);
-					else
-						linkedResponse(conn,
-							site->getResponse);
+					else if (linkedResponse(conn,
+							site->getResponse))
+						return 1;
 #else
-					/* Unreachable state */
+					/* Unreachable state (filtered by startup) */
 					sendErrorResponse(conn->stream,
 							ERROR_500);
 #endif

@@ -58,4 +58,8 @@ int createTmpName(char *path);
  *
  * Returns non-zero on error, uses rand()
  * */
+
+void setsignal(int signal, void (*handler)(int));
+void unsetsignal(int signal);
+
 #endif

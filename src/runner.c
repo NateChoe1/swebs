@@ -97,8 +97,11 @@ void runServer(int connfd, Sitefile *site, int *pending, int id,
 		}
 
 		for (i = 1; i < connCount; i++) {
-			if (updateConnection(connections + i, site))
-				goto remove;
+			if (fds[i].revents & POLLIN) {
+				createFormatLog("Connection %d has data", i);
+				if (updateConnection(connections + i, site))
+					goto remove;
+			}
 			continue;
 remove:
 			freeConnection(connections + i);
@@ -115,6 +118,7 @@ remove:
 			Stream *newstream;
 			int newfd;
 			int portind;
+			createLog("Main fd has data");
 			newfd = recvFd(connfd);
 			if (newfd < 0) {
 				createLog("Message received that included an invalid fd, quitting");

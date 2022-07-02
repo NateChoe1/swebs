@@ -97,8 +97,8 @@ void freeConnection(Connection *conn) {
 	free(conn->currLine);
 	free(conn->body);
 	for (i = 0; i < conn->fieldCount; i++) {
-		free(conn->pathFields[i].var.data);
-		free(conn->pathFields[i].value.data);
+		free(conn->fields[i].field);
+		free(conn->fields[i].value);
 	}
 	for (i = 0; i < conn->pathFieldCount; i++) {
 		free(conn->pathFields[i].var.data);
@@ -367,7 +367,8 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 	}
 	if (conn->progress == RECEIVE_BODY &&
 	    conn->receivedBody >= conn->bodylen)
-		sendResponse(conn, site);
+		if (sendResponse(conn, site))
+			return 1;
 	return 0;
 }
 

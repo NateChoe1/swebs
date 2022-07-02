@@ -23,6 +23,7 @@
 #include <stdarg.h>
 
 #include <fcntl.h>
+#include <signal.h>
 #include <unistd.h>
 #include <sys/shm.h>
 #include <sys/socket.h>
@@ -256,4 +257,24 @@ int createTmpName(char *path) {
 			return 1;
 		return 0;
 	}
+}
+
+void setsignal(int signal, void (*handler)(int)) {
+	struct sigaction action;
+	sigset_t sigset;
+	sigemptyset(&sigset);
+	action.sa_handler = handler;
+	action.sa_mask = sigset;
+	action.sa_flags = 0;
+	sigaction(signal, &action, NULL);
+}
+
+void unsetsignal(int signal) {
+	struct sigaction action;
+	sigset_t sigset;
+	sigemptyset(&sigset);
+	action.sa_handler = SIG_DFL;
+	action.sa_mask = sigset;
+	action.sa_flags = SA_NODEFER;
+	sigaction(signal, &action, NULL);
 }
