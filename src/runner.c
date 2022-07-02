@@ -88,13 +88,8 @@ void runServer(int connfd, Sitefile *site, int *pending, int id,
 
 	for (;;) {
 		poll(fds, connCount, -1);
-		{
-			char log[200];
-			sprintf(log,
-"poll() finished with %d connections",
-			connCount);
-			createLog(log);
-		}
+
+		createFormatLog("poll() finished with %d connections", connCount);
 
 		for (i = 1; i < connCount; i++) {
 			if (fds[i].revents & POLLIN) {
