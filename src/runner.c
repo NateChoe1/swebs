@@ -117,8 +117,8 @@ remove:
 			int portind;
 			newfd = recvFd(connfd);
 			if (newfd < 0) {
-				createLog("Message received that included an invalid fd");
-				continue;
+				createLog("Message received that included an invalid fd, quitting");
+				exit(EXIT_FAILURE);
 			}
 			while (conninfo->valid == 0) ;
 			portind = conninfo->portind;

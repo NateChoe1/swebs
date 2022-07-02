@@ -107,6 +107,7 @@ static void createProcess(int id) {
 	for (i = 0; i < sizeof(signals) / sizeof(signals[0]); i++)
 		unsetsignal(signals[i]);
 	unsetsignal(SIGCHLD);
+	setsignal(SIGPIPE, SIG_IGN);
 
 	connfd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (connfd < 0) {
@@ -125,9 +126,10 @@ static void createProcess(int id) {
 
 static void remakeChild(int signal) {
 	pid_t pid;
-	int i;
-	pid = wait(NULL);
-	createLog("A child has died, recreating");
+	int i, status;
+	pid = wait(&status);
+	createFormatLog("A child has died, recreating: %s",
+			strsignal(WTERMSIG(status)));
 	for (i = 0; i < processes - 1; i++) {
 		if (runners[i].pid == pid) {
 			close(runners[i].fd);

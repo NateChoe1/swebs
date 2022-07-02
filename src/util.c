@@ -20,6 +20,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -123,6 +124,22 @@ int createErrorLog(char *msg, int err) {
 			msg, strerror(err));
 	fflush(logs);
 	return 0;
+}
+
+int createFormatLog(char *fmt, ...) {
+	va_list ap;
+	char *log;
+	int code;
+	va_start(ap, fmt);
+	log = malloc(vsnprintf(NULL, 0, fmt, ap) + 1);
+	va_end(ap);
+	if (log == NULL)
+		return 1;
+	va_start(ap, fmt);
+	vsprintf(log, fmt, ap);
+	va_end(ap);
+	code = createLog(log);
+	return code;
 }
 
 int istrcmp(char *s1, char *s2) {

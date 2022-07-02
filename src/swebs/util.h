@@ -36,6 +36,7 @@ char *xstrdup(char *str);
 
 int createLog(char *msg);
 int createErrorLog(char *msg, int err);
+int createFormatLog(char *fmt, ...);
 int istrcmp(char *s1, char *s2);
 /* case insensitive strcmp */
 RequestType getType(char *str);
