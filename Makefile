@@ -2,7 +2,7 @@ SRC = $(wildcard src/*.c)
 OBJ = $(subst .c,.o,$(subst src,work,$(SRC)))
 LIBS = gnutls
 LDFLAGS = -pie -lrt -ldl $(shell pkg-config --libs $(LIBS))
-CFLAGS := -O2 -pipe -Wall -Wpedantic -Wshadow -ansi -D_XOPEN_SOURCE=500 -ggdb
+CFLAGS := -O2 -pipe -Wall -Wpedantic -Wshadow -ansi -D_XOPEN_SOURCE=500
 CFLAGS += -Isrc/ -fpie -D_POSIX_C_SOURCE=200809L $(shell pkg-config --cflags $(LIBS))
 INSTALLDIR := /usr/sbin
 HEADERDIR := /usr/include/

@@ -29,7 +29,7 @@ typedef struct {
 } ConnInfo;
 
 void runServer(int connfd, Sitefile *site, int *pending, int id,
-		ConnInfo *info);
+		volatile ConnInfo *info);
 /* pending and info are shared memory. pending[id] is the amount of connections
  * that are being processed by that process, and info contains info about the
  * connection being sent through. */

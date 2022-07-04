@@ -32,7 +32,7 @@
 #include <swebs/connections.h>
 
 void runServer(int connfd, Sitefile *site, int *pending, int id,
-		ConnInfo *conninfo) {
+		volatile ConnInfo *conninfo) {
 	int allocConns = 100;
 	struct pollfd *fds;
 	Connection *connections;

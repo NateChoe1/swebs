@@ -46,7 +46,7 @@ static int *pending;
 static Sitefile *site;
 static int mainfd; /* fd of the UNIX socket */
 static struct sockaddr_un addr;
-static ConnInfo *conninfo;
+static volatile ConnInfo *conninfo;
 /* We want to be able to handle a signal at any time, so some global variables
  * are needed. */
 static const int signals[] = {
