@@ -395,7 +395,7 @@ int updateConnection(Connection *conn, Sitefile *site) {
 		received = recvStream(conn->stream, buff, sizeof(buff));
 		createFormatLog("Received %ld bytes", received);
 		if (received < 0)
-			return errno != EAGAIN;
+			return errno != EAGAIN && totalReceived <= 0;
 		if (received == 0)
 			return 1;
 		totalReceived += received;
