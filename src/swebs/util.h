@@ -41,8 +41,8 @@ int istrcmp(char *s1, char *s2);
 /* case insensitive strcmp */
 RequestType getType(char *str);
 
-void sendFd(int fd, int dest);
-int recvFd(int source);
+void sendFd(int fd, int dest, void *data, size_t len);
+int recvFd(int source, void *data, size_t len);
 
 int createTmpName(char *path);
 /* WIll set the 5 characters at the end of path to random data so that that

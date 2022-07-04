@@ -346,7 +346,7 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 			if (--conn->currLineLen < 0)
 				return 1;
 			if (conn->currLine[conn->currLineLen] != '\r')
-				return 1;
+				++conn->currLineLen;
 			conn->currLine[conn->currLineLen] = '\0';
 			if (conn->progress == RECEIVE_REQUEST) {
 				if (processRequest(conn))

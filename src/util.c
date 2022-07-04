@@ -173,7 +173,7 @@ RequestType getType(char *str) {
 	return INVALID;
 }
 
-void sendFd(int fd, int dest) {
+void sendFd(int fd, int dest, void *data, size_t len) {
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
 	char iobuf[1];
@@ -183,8 +183,14 @@ void sendFd(int fd, int dest) {
 		struct cmsghdr align;
 	} u;
 	memset(&msg, 0, sizeof(msg));
-	io.iov_base = iobuf;
-	io.iov_len = sizeof(iobuf);
+	if (data == NULL) {
+		io.iov_base = iobuf;
+		io.iov_len = sizeof(iobuf);
+	}
+	else {
+		io.iov_base = data;
+		io.iov_len = len;
+	}
 	msg.msg_iov = &io;
 	msg.msg_iovlen = 1;
 	msg.msg_control = u.buf;
@@ -197,7 +203,7 @@ void sendFd(int fd, int dest) {
 	sendmsg(dest, &msg, 0);
 }
 
-int recvFd(int source) {
+int recvFd(int source, void *data, size_t len) {
 	union {
 		char buff[CMSG_SPACE(sizeof(int))];
 		struct cmsghdr align;
@@ -205,15 +211,19 @@ int recvFd(int source) {
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
 	struct iovec iov;
-	int data;
 	ssize_t nr;
 	int ret;
+	char buf[1];
 
 	msg.msg_name = NULL;
 	msg.msg_namelen = 0;
 
-	iov.iov_base = &data;
-	iov.iov_len = sizeof(data);
+	if (data == NULL) {
+		data = buf;
+		len = sizeof buf;
+	}
+	iov.iov_base = data;
+	iov.iov_len = len;
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 
@@ -224,7 +234,7 @@ int recvFd(int source) {
 		return -1;
 
 	cmsg = CMSG_FIRSTHDR(&msg);
-	if (cmsg == NULL || cmsg->cmsg_len != CMSG_LEN(sizeof(data)))
+	if (cmsg == NULL || cmsg->cmsg_len != CMSG_LEN(len))
 		return -1;
 	if (cmsg->cmsg_level != SOL_SOCKET)
 		return -1;

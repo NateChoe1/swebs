@@ -42,11 +42,10 @@ typedef struct {
 
 static Runner *runners;
 static int processes;
-static int *pending;
+static volatile int *pending;
 static Sitefile *site;
 static int mainfd; /* fd of the UNIX socket */
 static struct sockaddr_un addr;
-static volatile ConnInfo *conninfo;
 /* We want to be able to handle a signal at any time, so some global variables
  * are needed. */
 static const int signals[] = {
@@ -99,7 +98,7 @@ static void createProcess(int id) {
 		exit(EXIT_FAILURE);
 	}
 	close(mainfd);
-	runServer(connfd, site, pending, id, conninfo);
+	runServer(connfd, site, pending, id);
 	createLog("child runServer() finished");
 	exit(EXIT_SUCCESS);
 }
@@ -123,7 +122,6 @@ int main(int argc, char **argv) {
 	int i;
 	int pendingid;
 	int backlog;
-	int conninfoid;
 	Listener **listeners;
 	struct pollfd *pollfds;
 
@@ -153,18 +151,8 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	conninfoid = smalloc(sizeof *conninfo);
-	if (conninfoid < 0) {
-		createErrorLog("smalloc() failed", errno);
-		exit(EXIT_FAILURE);
-	}
-	conninfo = saddr(conninfoid);
-	if (conninfo == NULL) {
-		createErrorLog("saddr() failed", errno);
-		exit(EXIT_FAILURE);
-	}
-
-	memset(pending, 0, sizeof(int) * (processes - 1));
+	for (i = 0; i < processes - 1; ++i)
+		pending[i] = 0;
 
 	mainfd = socket(AF_UNIX, SOCK_STREAM, 0);
 	addr.sun_family = AF_UNIX;
@@ -188,6 +176,7 @@ int main(int argc, char **argv) {
 	createLog("swebs started");
 
 	for (;;) {
+		createLog("poll() started");
 		if (poll(pollfds, site->portcount, -1) < 0) {
 			if (errno == EINTR)
 				continue;
@@ -202,14 +191,11 @@ int main(int argc, char **argv) {
 			if (pollfds[i].revents & POLLIN) {
 				int j, lowestproc, fd;
 				fd = acceptConnection(listeners[i]);
-				while (conninfo->valid) ;
 				lowestproc = 0;
 				for (j = 0; j < processes - 1; j++)
 					if (pending[j] < pending[lowestproc])
 						lowestproc = j;
-				conninfo->portind = i;
-				conninfo->valid = 1;
-				sendFd(fd, runners[lowestproc].fd);
+				sendFd(fd, runners[lowestproc].fd, &i, sizeof i);
 			}
 		}
 	}

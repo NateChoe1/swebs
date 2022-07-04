@@ -31,8 +31,7 @@
 #include <swebs/sitefile.h>
 #include <swebs/connections.h>
 
-void runServer(int connfd, Sitefile *site, int *pending, int id,
-		volatile ConnInfo *conninfo) {
+void runServer(int connfd, Sitefile *site, volatile int *pending, int id) {
 	int allocConns = 100;
 	struct pollfd *fds;
 	Connection *connections;
@@ -114,16 +113,11 @@ remove:
 			int newfd;
 			int portind;
 			createLog("Main fd has data");
-			newfd = recvFd(connfd);
+			newfd = recvFd(connfd, &portind, sizeof portind);
 			if (newfd < 0) {
 				createLog("Message received that included an invalid fd, quitting");
 				exit(EXIT_FAILURE);
 			}
-			while (conninfo->valid == 0) ;
-			portind = conninfo->portind;
-			conninfo->valid = 0;
-
-			createLog("Obtained file descriptor from child");
 
 			newstream = createStream(contexts[portind], O_NONBLOCK, newfd);
 			if (newstream == NULL) {
