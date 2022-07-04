@@ -386,13 +386,17 @@ int updateConnection(Connection *conn, Sitefile *site) {
 		unsigned long i;
 		struct timespec currentTime;
 		const Port *port = site->ports + conn->portind;
-		if (clock_gettime(CLOCK_MONOTONIC, &currentTime) < 0)
-			return 1;
-		if (port->timeout > 0 &&
-		    diff(&conn->lastdata, &currentTime) > port->timeout) {
+		if (clock_gettime(CLOCK_MONOTONIC, &currentTime) < 0) {
+			createLog("Error getting current time");
 			return 1;
 		}
-		received = recvStream(conn->stream, buff, sizeof(buff));
+		if (port->timeout > 0 &&
+		    diff(&conn->lastdata, &currentTime) > port->timeout) {
+			createLog("Connection timed out");
+			return 1;
+		}
+		createFormatLog("Attempting to receive %ld bytes", sizeof buff);
+		received = recvStream(conn->stream, buff, sizeof buff);
 		createFormatLog("Received %ld bytes", received);
 		if (received < 0)
 			return errno != EAGAIN && totalReceived <= 0;
