@@ -98,14 +98,22 @@ void runServer(int connfd, Sitefile *site, volatile int *pending, int id) {
 			}
 			continue;
 remove:
-			freeConnection(connections + i);
-			--connCount;
-			memcpy(fds + i, fds + connCount - 1,
-					sizeof(struct pollfd));
-			memcpy(connections + i, fds + connCount,
-					sizeof(struct pollfd));
-			--pending[id];
-			--i;
+			{
+				int remove, replace;
+				remove = i;
+				replace = connCount - 1;
+				freeConnection(connections + remove);
+
+				memcpy(fds + remove, fds + replace,
+						sizeof(struct pollfd));
+				memcpy(connections + remove, fds + replace,
+						sizeof(struct pollfd));
+
+				--pending[id];
+
+				--i;
+				--connCount;
+			}
 		}
 
 		if (fds[0].revents & POLLIN) {
@@ -123,6 +131,7 @@ remove:
 			if (newstream == NULL) {
 				createLog(
 "Stream couldn't be created from file descriptor");
+				shutdown(newfd, SHUT_RDWR);
 				close(newfd);
 				continue;
 			}
