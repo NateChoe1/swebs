@@ -106,7 +106,8 @@ remove:
 
 				memcpy(fds + remove, fds + replace,
 						sizeof(struct pollfd));
-				memcpy(connections + remove, fds + replace,
+				memcpy(connections + remove,
+						connections + replace,
 						sizeof(struct pollfd));
 
 				--pending[id];
