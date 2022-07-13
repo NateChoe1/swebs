@@ -45,6 +45,7 @@ typedef struct {
 	char *arg;
 	unsigned short *ports;
 	int portcount;
+	char *contenttype;
 } SiteCommand;
 
 typedef struct {

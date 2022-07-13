@@ -18,6 +18,7 @@
 
 #include <features.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,9 +32,11 @@
 #include <swebs/responses.h>
 #include <swebs/responseutil.h>
 
-static int readResponse(Connection *conn, char *path) {
+static int readResponse(Connection *conn, SiteCommand *command) {
 	int fd = -1;
 	struct stat statbuf;
+	char *path;
+	path = command->arg;
 	if (stat(path, &statbuf)) {
 		sendErrorResponse(conn->stream, ERROR_404);
 		return 1;
@@ -95,7 +98,19 @@ static int readResponse(Connection *conn, char *path) {
 		fd = open(path, O_RDONLY);
 	if (fd < 0)
 		goto forbidden;
-	return sendSeekableFile(conn->stream, CODE_200, fd);
+	{
+		int ret;
+		char *contenthead, *contenttype;
+		const char *template = "Content-Type: %s\r\n";
+		contenttype = command->contenttype;
+		contenthead = malloc(snprintf(NULL, 0, template, contenttype) + 1);
+		if (contenthead == NULL)
+			return 1;
+		sprintf(contenthead, template, contenttype);
+		ret = sendSeekableFile(conn->stream, CODE_200, fd, contenthead, NULL);
+		free(contenthead);
+		return ret;
+	}
 error:
 	sendErrorResponse(conn->stream, ERROR_500);
 	return 1;
@@ -126,14 +141,14 @@ static int linkedResponse(Connection *conn,
 		case FILE_KNOWN_LENGTH:
 			return sendKnownPipe(conn->stream, getCode(code),
 					response.response.file.fd,
-					response.response.file.len);
+					response.response.file.len, NULL);
 		case FILE_UNKNOWN_LENGTH:
 			return sendPipe(conn->stream, getCode(code),
-					response.response.file.fd);
+					response.response.file.fd, NULL);
 		case BUFFER: case BUFFER_NOFREE:
 			ret = sendBinaryResponse(conn->stream, getCode(code),
 					response.response.buffer.data,
-					response.response.buffer.len);
+					response.response.buffer.len, NULL);
 			if (response.type == BUFFER)
 				free(response.response.buffer.data);
 			return ret;
@@ -150,16 +165,142 @@ static int fullmatch(regex_t *regex, char *str) {
 	return match.rm_so != 0 || match.rm_eo != strlen(str);
 }
 
-int sendResponse(Connection *conn, Sitefile *site) {
-	char *host = NULL;
-	int i;
-	for (i = 0; i < conn->fieldCount; i++) {
-		if (strcmp(conn->fields[i].field, "Host") == 0) {
-			host = conn->fields[i].value;
-			break;
+static char *nextdirective(char *header) {
+	char *loc;
+	loc = strstr(header, "; ");
+	if (loc == NULL)
+		return NULL;
+	return loc + 2;
+}
+
+static char *gettype(char *request, char **type) {
+	char *typeret;
+	char *ret;
+	{
+		char *next;
+		next = strstr(request, ", ");
+		if (next == NULL) {
+			typeret = strdup(request);
+			if (typeret == NULL) {
+				*type = NULL;
+				return NULL;
+			}
+			ret = NULL;
+		}
+		else {
+			size_t biglen;
+			biglen = next - request;
+			typeret = malloc(biglen + 1);
+			if (typeret == NULL) {
+				*type = NULL;
+				return NULL;
+			}
+			memcpy(typeret, request, biglen);
+			typeret[biglen] = '\0';
+			ret = next + 2;
 		}
 	}
-	if (host == NULL) {
+	{
+		char *set;
+		set = strchr(typeret, ';');
+		if (set != NULL)
+			set[0] = '\0';
+	}
+	*type = typeret;
+	return ret;
+}
+
+static int ismatch(char *request, char *type) {
+/* Matches a single MIME type. Note that * /html is valid for request. */
+	int i;
+	if (request[0] == '\0' || type[0] == '\0')
+		return request[0] != type[0];
+
+	if (request[0] == '*' && (request[1] == '/' || request[1] == '\0')) {
+		char *nexttype;
+		nexttype = type;
+		while (nexttype[0] != '/' && nexttype[0] != '\0')
+			++nexttype;
+		if (request[1] != nexttype[0])
+			return 0;
+		if (nexttype[0] == '\0')
+			return 1;
+		return ismatch(request + 2, type + 1);
+	}
+
+	for (i = 0; request[i] == type[i] &&
+			request[i] != '/' && request[i] != '\0'; ++i) ;
+	if (request[i] != type[i])
+		return 0;
+	if (request[i] == '\0')
+		return 1;
+	return ismatch(request + i + 1, type + i + 1);
+}
+
+static int wasasked(char *request, char *type) {
+/* request is the Accept header field and type is the type of the page. */
+	char *mimetype; /* the actual mime type*/
+	char *checkloc;
+	{
+		char *typeptr;
+		mimetype = NULL;
+		typeptr = type;
+		while (mimetype == NULL) {
+			char *next;
+			if (typeptr == NULL)
+				return 0;
+			next = nextdirective(typeptr);
+			if (strncmp(typeptr, "charset=", 8) == 0) {
+				typeptr = next;
+				continue;
+			}
+			if (strncmp(typeptr, "boundary=", 9) == 0) {
+				typeptr = next;
+				continue;
+			}
+			if (next == NULL) {
+				mimetype = strdup(typeptr);
+				if (mimetype == NULL)
+					return 0;
+			}
+			else {
+				size_t mimelen;
+				mimelen = next - typeptr;
+				mimetype = malloc(mimelen + 1);
+				if (mimetype == NULL)
+					return 0;
+				memcpy(mimetype, typeptr, mimelen);
+				mimetype[mimelen] = '\0';
+			}
+		}
+	}
+
+	checkloc = request;
+	while (checkloc != NULL) {
+		char *check;
+		checkloc = gettype(checkloc, &check);
+		if (check == NULL)
+			return 0;
+		if (ismatch(check, mimetype)) {
+			free(check);
+			return 1;
+		}
+		free(check);
+	}
+	return 0;
+}
+
+int sendResponse(Connection *conn, Sitefile *site) {
+	char *host = NULL;
+	char *accept = NULL;
+	int i;
+	for (i = 0; i < conn->fieldCount; i++) {
+		if (strcmp(conn->fields[i].field, "Host") == 0)
+			host = conn->fields[i].value;
+		else if (strcmp(conn->fields[i].field, "Accept") == 0)
+			accept = conn->fields[i].value;
+	}
+	if (host == NULL || accept == NULL) {
 		sendErrorResponse(conn->stream, ERROR_400);
 		return 1;
 	}
@@ -167,6 +308,8 @@ int sendResponse(Connection *conn, Sitefile *site) {
 		if (site->content[i].respondto != conn->type)
 			continue;
 		if (fullmatch(&site->content[i].host, host))
+			continue;
+		if (!wasasked(accept, site->content[i].contenttype))
 			continue;
 		{
 			int j;
@@ -181,7 +324,7 @@ foundport:
 			switch (site->content[i].command) {
 				case READ:
 					if (readResponse(conn,
-							site->content[i].arg))
+							site->content + i))
 						return 1;
 					break;
 				case THROW:

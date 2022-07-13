@@ -68,6 +68,30 @@ static int sendStreamValist(Stream *stream, char *format, ...) {
 	return 0;
 }
 
+static int sendHeaderValist(Stream *stream, const char *status, size_t len, va_list ap) {
+	if (sendStreamValist(stream,
+		"HTTP/1.1 %s\r\n"
+		CONST_FIELDS
+		"Content-Length: %lu\r\n", status, len))
+		return 1;
+	for (;;) {
+		char *header;
+		header = va_arg(ap, char *);
+		if (header == NULL)
+			break;
+		if (resilientSend(stream, header, strlen(header)))
+			return 1;
+	}
+	va_end(ap);
+	return resilientSend(stream, "\r\n", 2);
+}
+
+int sendHeader(Stream *stream, const char *status, size_t len, ...) {
+	va_list ap;
+	va_start(ap, len);
+	return sendHeaderValist(stream, status, len, ap);
+}
+
 char *getCode(int code) {
 	switch (code) {
 		case 200:
@@ -85,15 +109,14 @@ char *getCode(int code) {
 	}
 }
 
-int sendStringResponse(Stream *stream, const char *status, char *str) {
-	return sendStreamValist(stream,
-		"HTTP/1.1 %s\r\n"
-		CONST_FIELDS
-		"Content-Length: %lu\r\n"
-		"\r\n"
-		"%s"
-		, status, strlen(str), str
-	);
+int sendStringResponse(Stream *stream, const char *status, char *str, ...) {
+	va_list ap;
+	size_t len;
+	va_start(ap, str);
+	len = strlen(str);
+	if (sendHeaderValist(stream, status, len, ap))
+		return 1;
+	return resilientSend(stream, str, len);
 }
 
 int sendErrorResponse(Stream *stream, const char *error) {
@@ -106,38 +129,62 @@ int sendErrorResponse(Stream *stream, const char *error) {
 	int len = snprintf(NULL, 0, template, error);
 	char *response = malloc(len + 1);
 	sprintf(response, template, error);
-	ret = sendStringResponse(stream, error, response);
+	ret = sendStringResponse(stream, error, response,
+			"Content-Type: text/html\r\n", NULL);
 	free(response);
 	return ret;
 }
 
-int sendBinaryResponse(Stream *stream, const char *status,
-		void *data, size_t len) {
-	if (sendHeader(stream, status, len))
+static int sendBinaryResponseValist(Stream *stream, const char *status,
+		void *data, size_t len, va_list ap) {
+	if (sendHeaderValist(stream, status, len, ap))
 		return 1;
 	return resilientSend(stream, data, len);
 }
 
-int sendHeader(Stream *stream, const char *status, size_t len) {
-	return (sendStreamValist(stream,
-		"HTTP/1.1 %s\r\n"
-		CONST_FIELDS
-		"Content-Length: %lu\r\n"
-		"\r\n"
-		, status, len));
+static int sendKnownPipeValist(Stream *stream, const char *status,
+		int fd, size_t len, va_list ap) {
+	size_t totalSent = 0;
+	sendHeaderValist(stream, status, len, ap);
+	for (;;) {
+		char buffer[1024];
+		ssize_t inBuffer = read(fd, buffer, sizeof(buffer));
+		if (inBuffer < 0)
+			return 1;
+		if (inBuffer == 0)
+			return totalSent != len;
+		if (resilientSend(stream, buffer, inBuffer))
+			return 1;
+	}
 }
 
-int sendSeekableFile(Stream *stream, const char *status, int fd) {
+int sendKnownPipe(Stream *stream, const char *status, int fd, size_t len, ...) {
+	va_list ap;
+	va_start(ap, len);
+	return sendKnownPipeValist(stream, status, fd, len, ap);
+}
+
+int sendBinaryResponse(Stream *stream, const char *status,
+		void *data, size_t len, ...) {
+	va_list ap;
+	va_start(ap, len);
+	return sendBinaryResponseValist(stream, status, data, len, ap);
+}
+
+int sendSeekableFile(Stream *stream, const char *status, int fd, ...) {
 	off_t len;
+	va_list ap;
 	len = lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
-	return sendKnownPipe(stream, status, fd, len);
+	va_start(ap, fd);
+	return sendKnownPipeValist(stream, status, fd, len, ap);
 }
 
-int sendPipe(Stream *stream, const char *status, int fd) {
+int sendPipe(Stream *stream, const char *status, int fd, ...) {
 	size_t allocResponse = 1024;
 	size_t responseLen = 0;
 	char *response = malloc(allocResponse);
+	va_list ap;
 	for (;;) {
 		ssize_t len;
 		if (responseLen >= allocResponse) {
@@ -158,7 +205,7 @@ int sendPipe(Stream *stream, const char *status, int fd) {
 		responseLen += len;
 	}
 	close(fd);
-	sendHeader(stream, CODE_200, responseLen);
+	sendHeaderValist(stream, CODE_200, responseLen, ap);
 	if (resilientSend(stream, response, responseLen)) {
 		free(response);
 		return 1;
@@ -170,19 +217,4 @@ error:
 	free(response);
 	sendErrorResponse(stream, ERROR_500);
 	return 1;
-}
-
-int sendKnownPipe(Stream *stream, const char *status, int fd, size_t len) {
-	size_t totalSent = 0;
-	sendHeader(stream, status, len);
-	for (;;) {
-		char buffer[1024];
-		ssize_t inBuffer = read(fd, buffer, sizeof(buffer));
-		if (inBuffer < 0)
-			return 1;
-		if (inBuffer == 0)
-			return totalSent != len;
-		if (resilientSend(stream, buffer, inBuffer))
-			return 1;
-	}
 }

@@ -18,6 +18,8 @@ define library ./library.so
 
 set host localhost:8000
 # The following pages will respond to the host localhost:8000
+set type text/html
+# The following pages are html
 read / site/index.html
 # The path / should be read from site/index.html
 read /hello  site/hello.html
@@ -35,7 +37,9 @@ set host .*
 
 read / site/easteregg.html
 # The path / should be read from site/easteregg.html
+set type image/png
 read /egg.png site/egg.png
+set type text/html
 # The path /egg.png should be read from site/egg.png
 read /alldomains site/alldomains.html
 # The path /alldomains should be read from /site/alldomains.html

@@ -223,6 +223,7 @@ Sitefile *parseSitefile(char *path) {
 	Sitefile *ret;
 	unsigned short *ports;
 	int portcount;
+	char *contenttype;
 
 	file = fopen(path, "r");
 	if (file == NULL)
@@ -242,6 +243,8 @@ Sitefile *parseSitefile(char *path) {
 #if DYNAMIC_LINKED_PAGES
 	ret->getResponse = NULL;
 #endif
+
+	contenttype = xstrdup("text/html");
 
 	for (;;) {
 		ReturnCode status = getCommand(file, &argc, &argv);
@@ -274,8 +277,10 @@ Sitefile *parseSitefile(char *path) {
 				if (respondto == INVALID)
 					goto error;
 			}
-			else if (strcmp(argv[1], "host") == 0)
+			else if (strcmp(argv[1], "host") == 0) {
+				free(host);
 				host = xstrdup(argv[2]);
+			}
 			else if (strcmp(argv[1], "port") == 0) {
 				free(ports);
 				if (getports(&ports, &portcount, argv[2])) {
@@ -283,6 +288,10 @@ Sitefile *parseSitefile(char *path) {
 							argv[2]);
 					goto error;
 				}
+			}
+			else if (strcmp(argv[1], "type") == 0) {
+				free(contenttype);
+				contenttype = strdup(argv[2]);
 			}
 			else
 				goto error;
@@ -416,6 +425,8 @@ Sitefile *parseSitefile(char *path) {
 				sizeof *ret->content[ret->size].ports);
 		memcpy(ret->content[ret->size].ports, ports, portcount * sizeof *ports);
 		ret->content[ret->size].portcount = portcount;
+
+		ret->content[ret->size].contenttype = xstrdup(contenttype);
 
 		ret->size++;
 	}

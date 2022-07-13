@@ -26,13 +26,13 @@
 #define ERROR_500 "500 Internal Server Error"
 
 char *getCode(int code);
-int sendStringResponse(Stream *stream, const char *status, char *str);
+int sendStringResponse(Stream *stream, const char *status, char *str, ...);
 int sendBinaryResponse(Stream *stream, const char *status,
-		void *data, size_t len);
+		void *data, size_t len, ...);
 int sendErrorResponse(Stream *stream, const char *error);
 /* sendErrorResponse(conn, ERROR_404); */
-int sendHeader(Stream *stream, const char *status, size_t len);
-int sendSeekableFile(Stream *stream, const char *status, int fd);
-int sendPipe(Stream *stream, const char *status, int fd);
-int sendKnownPipe(Stream *stream, const char *status, int fd, size_t len);
+int sendHeader(Stream *stream, const char *status, size_t len, ...);
+int sendSeekableFile(Stream *stream, const char *status, int fd, ...);
+int sendPipe(Stream *stream, const char *status, int fd, ...);
+int sendKnownPipe(Stream *stream, const char *status, int fd, size_t len, ...);
 #endif

@@ -50,6 +50,7 @@ sitefiles also allow comments with #
 	* POST
 * ```host``` - The hostname to respond to. Case insensitive regex, default: .*
 * ```port``` - The ports to respond to in a comma separated list. Default: 80
+* ```type``` - The content-type (default: text/html)
 
 # Part 4: Global variables
 
