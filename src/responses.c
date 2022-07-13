@@ -195,7 +195,7 @@ static char *gettype(char *request, char **type) {
 	char *ret;
 	{
 		char *next;
-		next = strstr(request, ", ");
+		next = strchr(request, ',');
 		if (next == NULL) {
 			typeret = strdup(request);
 			if (typeret == NULL) {
@@ -214,7 +214,7 @@ static char *gettype(char *request, char **type) {
 			}
 			memcpy(typeret, request, biglen);
 			typeret[biglen] = '\0';
-			ret = next + 2;
+			ret = next + 1;
 		}
 	}
 	{
