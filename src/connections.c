@@ -259,7 +259,7 @@ static int processRequest(Connection *conn) {
 			return 1;
 		}
 	}
-	if (strcmp(line, "HTTP/1.1"))
+	if (strcmp(line, "HTTP/1.0") && strcmp(line, "HTTP/1.1"))
 		return 1;
 	conn->progress = RECEIVE_HEADER;
 	conn->fieldCount = 0;
