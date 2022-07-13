@@ -32,6 +32,8 @@
 #include <swebs/responses.h>
 #include <swebs/responseutil.h>
 
+static const char *contenttemplate = "Content-Type: %s\r\n";
+
 static int readResponse(Connection *conn, SiteCommand *command) {
 	int fd = -1;
 	struct stat statbuf;
@@ -101,12 +103,11 @@ static int readResponse(Connection *conn, SiteCommand *command) {
 	{
 		int ret;
 		char *contenthead, *contenttype;
-		const char *template = "Content-Type: %s\r\n";
 		contenttype = command->contenttype;
-		contenthead = malloc(snprintf(NULL, 0, template, contenttype) + 1);
+		contenthead = malloc(snprintf(NULL, 0, contenttemplate, contenttype) + 1);
 		if (contenthead == NULL)
 			return 1;
-		sprintf(contenthead, template, contenttype);
+		sprintf(contenthead, contenttemplate, contenttype);
 		ret = sendSeekableFile(conn->stream, CODE_200, fd, contenthead, NULL);
 		free(contenthead);
 		return ret;
@@ -120,11 +121,18 @@ forbidden:
 }
 
 static int linkedResponse(Connection *conn,
-		int (*getResponse)(Request *request, Response *response)) {
+		int (*getResponse)(Request *request, Response *response),
+		char *contenttype) {
 	Request request;
 	Response response;
 	int code;
 	int ret;
+	char *header;
+
+	header = malloc(snprintf(NULL, 0, contenttemplate, contenttype) + 1);
+	if (header == NULL)
+		return sendErrorResponse(conn->stream, ERROR_500);
+	sprintf(header, contenttemplate, contenttype);
 
 	request.fieldCount = conn->fieldCount;
 	request.fields = conn->fields;
@@ -137,25 +145,34 @@ static int linkedResponse(Connection *conn,
 
 	code = getResponse(&request, &response);
 
+	ret = 1;
+
 	switch (response.type) {
 		case FILE_KNOWN_LENGTH:
-			return sendKnownPipe(conn->stream, getCode(code),
+			ret =  sendKnownPipe(conn->stream, getCode(code),
 					response.response.file.fd,
-					response.response.file.len, NULL);
+					response.response.file.len,
+					header, NULL);
+			break;
 		case FILE_UNKNOWN_LENGTH:
-			return sendPipe(conn->stream, getCode(code),
-					response.response.file.fd, NULL);
+			ret = sendPipe(conn->stream, getCode(code),
+					response.response.file.fd,
+					header, NULL);
+			break;
 		case BUFFER: case BUFFER_NOFREE:
 			ret = sendBinaryResponse(conn->stream, getCode(code),
 					response.response.buffer.data,
-					response.response.buffer.len, NULL);
+					response.response.buffer.len,
+					header, NULL);
 			if (response.type == BUFFER)
 				free(response.response.buffer.data);
-			return ret;
+			break;
 		case DEFAULT:
-			return sendErrorResponse(conn->stream, getCode(code));
+			ret = sendErrorResponse(conn->stream, getCode(code));
+			break;
 	}
-	return 1;
+	free(header);
+	return ret;
 }
 
 static int fullmatch(regex_t *regex, char *str) {
@@ -225,7 +242,7 @@ static int ismatch(char *request, char *type) {
 			return 0;
 		if (nexttype[0] == '\0')
 			return 1;
-		return ismatch(request + 2, type + 1);
+		return ismatch(request + 2, nexttype + 1);
 	}
 
 	for (i = 0; request[i] == type[i] &&
@@ -338,7 +355,8 @@ foundport:
 						sendErrorResponse(conn->stream,
 								ERROR_500);
 					else if (linkedResponse(conn,
-							site->getResponse))
+							site->getResponse,
+							site->content[i].contenttype))
 						return 1;
 #else
 					/* Unreachable state (filtered by startup) */

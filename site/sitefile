@@ -29,7 +29,10 @@ throw /blog/forbidden 403
 # The path /blog/forbidden should throw error code 403
 read /blog/.* site/blog/
 # /blog/2021-1-25.html turns into site/blog//blog/2021-1-25.html
+
+set type text/text
 linked /library
+set type text/html
 # The path /library should be dynamically loaded from the library (library.so)
 
 set host .*
