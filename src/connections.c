@@ -398,8 +398,12 @@ int updateConnection(Connection *conn, Sitefile *site) {
 		createFormatLog("Attempting to receive %ld bytes", sizeof buff);
 		received = recvStream(conn->stream, buff, sizeof buff);
 		createFormatLog("Received %ld bytes", received);
-		if (received < 0)
-			return errno != EAGAIN && totalReceived <= 0;
+		if (received < 0) {
+			if (conn->stream->type == TCP)
+				return errno != EAGAIN && totalReceived <= 0;
+			else
+				return received == GNUTLS_E_INVALID_SESSION;
+		}
 		if (received == 0)
 			return 1;
 		totalReceived += received;
