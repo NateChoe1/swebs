@@ -67,6 +67,9 @@ static void gettoken(FILE *file, Token *ret) {
 	for (;;) {
 		c = fgetc(file);
 		switch (c) {
+		case '#':
+			while (c != '\n' && c != EOF)
+				c = fgetc(file);
 		case '\n':
 			ret->type = LINE_END;
 			return;
@@ -125,7 +128,12 @@ static CommandType getcommand(FILE *file, int *argcret, char ***argvret) {
 		case FILE_END:
 			if (argc == 0)
 				return PAST_END;
+			goto gotcommand;
 		case LINE_END:
+			if (argc == 0)
+				return getcommand(file, argcret, argvret);
+			goto gotcommand;
+		gotcommand:
 			*argcret = argc;
 			*argvret = argv;
 			return NORMAL;

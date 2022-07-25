@@ -22,7 +22,7 @@ set type text/html
 # The following pages are html
 read / site/index.html
 # The path / should be read from site/index.html
-read /hello  site/hello.html
+read /hello site/hello.html
 # The path /hello should be read from site/hello.html
 
 throw /blog/forbidden 403
