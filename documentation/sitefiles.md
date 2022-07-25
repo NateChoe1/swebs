@@ -9,6 +9,15 @@ sitefiles consist of commands, which are of the form
 
 sitefiles also allow comments with #
 
+Actions and arguments are made of tokens. A token is some text surrounded by
+whitespace, where backslashes are always escaped literally.
+
+For example:
+
+`token` -> `"token"`
+`token\ with\ escapes` -> 'token with escapes'
+`token\\with\\backslashes` -> 'token\with\backslashes'
+
 # Part 2: Commands
 
 * ```set [variable] [value]``` - sets some local variable for the following

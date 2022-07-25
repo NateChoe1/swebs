@@ -128,6 +128,8 @@ int sendErrorResponse(Stream *stream, const char *error) {
 	int ret;
 	int len = snprintf(NULL, 0, template, error);
 	char *response = malloc(len + 1);
+	if (response == NULL)
+		return 1;
 	sprintf(response, template, error);
 	ret = sendStringResponse(stream, error, response,
 			"Content-Type: text/html\r\n", NULL);
@@ -185,6 +187,8 @@ int sendPipe(Stream *stream, const char *status, int fd, ...) {
 	size_t responseLen = 0;
 	char *response = malloc(allocResponse);
 	va_list ap;
+	if (response == NULL)
+		goto error;
 	for (;;) {
 		ssize_t len;
 		if (responseLen >= allocResponse) {

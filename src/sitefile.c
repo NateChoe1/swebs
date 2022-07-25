@@ -33,145 +33,109 @@
  * good.
  * */
 
+
 typedef enum {
-	SUCCESS,
+	ARG,
 	LINE_END,
 	FILE_END,
-	ERROR
-} ReturnCode;
-/* this isn't ideal, but it's necessary to avoid namespace collisions. */
+	TOKEN_ERROR
+} TokenType;
 
-static void freeTokens(int argc, char **argv) {
+typedef struct {
+	TokenType type;
+	char *data;
+} Token;
+
+typedef enum {
+	NORMAL,
+	PAST_END,
+	COMMAND_ERROR
+} CommandType;
+
+static void freecommand(int argc, char **argv) {
 	int i;
 	for (i = 0; i < argc; i++)
 		free(argv[i]);
 	free(argv);
 }
 
-static ReturnCode getToken(FILE *file, char **ret) {
-	typedef enum {
-		QUOTED,
-		NONQUOTED
-	} TokenType;
-	TokenType type;
-	size_t allocatedLen = 50;
+static void gettoken(FILE *file, Token *ret) {
+	int c;
+	char *data;
 	size_t len;
-
+	size_t alloc;
 	for (;;) {
-		int c = fgetc(file);
-		if (c == '\n')
-			return LINE_END;
-		if (c == EOF)
-			return FILE_END;
-		if (c == '#') {
-			while (c != '\n')
-				c = fgetc(file);
-			return LINE_END;
+		c = fgetc(file);
+		switch (c) {
+		case '\n':
+			ret->type = LINE_END;
+			return;
+		case EOF:
+			ret->type = FILE_END;
+			return;
+		case ' ': case '\t':
+			continue;
 		}
-		if (!isspace(c)) {
-			if (c == '"')
-				type = QUOTED;
-			else {
-				type = NONQUOTED;
-				ungetc(c, file);
-			}
-			break;
-		}
+		ret->type = ARG;
+		ungetc(c, file);
+		break;
 	}
 
-	*ret = malloc(allocatedLen);
-
-	for (len = 0;; len++) {
-		int c;
-		if (len >= allocatedLen) {
-			char *newret;
-			allocatedLen *= 2;
-			newret = realloc(*ret, allocatedLen);
-			if (newret == NULL)
-				goto error;
-			*ret = newret;
+	alloc = 20;
+	data = xmalloc(alloc);
+	for (len = 0;; ++len) {
+		if (len >= alloc) {
+			alloc *= 2;
+			data = xrealloc(data, alloc);
 		}
 		c = fgetc(file);
-		switch (type) {
-			case QUOTED:
-				if (c == '"')
-					goto gotToken;
-				break;
-			case NONQUOTED:
-				if (isspace(c)) {
-					ungetc(c, file);
-					goto gotToken;
-				}
-				break;
+		if (isspace(c) || c == EOF) {
+			data[len] = '\0';
+			ret->type = ARG;
+			ret->data = data;
+			return;
 		}
 		switch (c) {
-			case '\\':
-				c = fgetc(file);
-				if (c == EOF)
-					goto error;
-				break;
-			case EOF:
-				if (type == NONQUOTED)
-					goto gotToken;
-				goto error;
+		case '\\':
+			c = fgetc(file);
+			if (c == EOF) {
+				ret->type = TOKEN_ERROR;
+				return;
+			}
+		default:
+			data[len] = c;
 		}
-		(*ret)[len] = c;
 	}
-gotToken:
-	(*ret)[len] = '\0';
-	return SUCCESS;
-error:
-	free(*ret);
-	return ERROR;
 }
 
-static ReturnCode getCommand(FILE *file, int *argcret, char ***argvret) {
-/* THIS FUNCTION WILL NOT RETURN LINE_END */
-	int argc;
+static CommandType getcommand(FILE *file, int *argcret, char ***argvret) {
+	int argc, argalloc;
 	char **argv;
-	int allocatedTokens;
-	if (feof(file))
-		return FILE_END;
-	argc = 0;
-	allocatedTokens = 5;
-	argv = malloc(allocatedTokens * sizeof(*argv));
-	for (;;) {
-		ReturnCode code;
-		if (argc >= allocatedTokens) {
-			char **newargv;
-			allocatedTokens *= 2;
-			newargv = realloc(argv,
-			      allocatedTokens * sizeof(char *));
-			if (newargv == NULL)
-				goto error;
-			argv = newargv;
-		}
-		code = getToken(file, argv + argc);
+	argalloc = 5;
+	argv = xmalloc(argalloc * sizeof *argv);
 
-		switch (code) {
-			case ERROR:
-				goto error;
-			case LINE_END:
-				if (argc == 0)
-					continue;
-				/* We allow empty lines */
-				/* fallthrough */
-			case FILE_END:
-				if (argc == 0) {
-					free(argv);
-					return FILE_END;
-				}
-				*argcret = argc;
-				*argvret = argv;
-				return SUCCESS;
-			case SUCCESS:
-				argc++;
-				break;
+	for (argc = 0;; ++argc) {
+		Token token;
+		if (argc >= argalloc) {
+			argalloc *= 2;
+			argv = xrealloc(argv, argalloc * sizeof *argv);
+		}
+		gettoken(file, &token);
+		switch (token.type) {
+		case FILE_END:
+			if (argc == 0)
+				return PAST_END;
+		case LINE_END:
+			*argcret = argc;
+			*argvret = argv;
+			return NORMAL;
+		case ARG:
+			argv[argc] = token.data;
+			break;
+		case TOKEN_ERROR:
+			return COMMAND_ERROR;
 		}
 	}
-error:
-	freeTokens(argc, argv);
-	return ERROR;
 }
 
 static char *getport(char *data, unsigned short *ret) {
@@ -247,27 +211,30 @@ Sitefile *parseSitefile(char *path) {
 	contenttype = xstrdup("text/html");
 
 	for (;;) {
-		ReturnCode status = getCommand(file, &argc, &argv);
-		switch (status) {
-			int i;
-			case FILE_END:
-				free(ports);
-				for (i = 0; i < ret->portcount; ++i) {
-					Port *port = ret->ports + i;
-					if (port->type == TLS &&
-						(port->key == NULL ||
-						 port->cert == NULL)) {
-						fprintf(stderr,
-"Port %hu declared as TLS without proper TLS files\n", port->num);
-						goto nterror;
-					}
+		int i;
+		CommandType commandtype;
+		commandtype = getcommand(file, &argc, &argv);
+		switch (commandtype) {
+		case PAST_END:
+			free(ports);
+			for (i = 0; i < ret->portcount; ++i) {
+				Port *port = ret->ports + i;
+				if (port->type == TLS &&
+					(port->key == NULL ||
+					 port->cert == NULL)) {
+					fprintf(stderr,
+"Port %hu declarS without proper TLS files\n", port->num);
+					goto nterror;
 				}
-				fclose(file);
-				return ret;
-			case ERROR: case LINE_END:
-				goto nterror;
-			case SUCCESS:
-				break;
+			}
+			free(contenttype);
+			free(host);
+			fclose(file);
+			return ret;
+		case COMMAND_ERROR:
+			goto nterror;
+		case NORMAL:
+			break;
 		}
 		if (strcmp(argv[0], "set") == 0) {
 			if (argc < 3)
@@ -315,7 +282,6 @@ Sitefile *parseSitefile(char *path) {
 		}
 		else if (strcmp(argv[0], "declare") == 0) {
 			Port newport;
-			int i;
 			if (argc < 3) {
 				fputs(
 "Usage: declare [transport] [port]\n", stderr);
@@ -354,7 +320,6 @@ Sitefile *parseSitefile(char *path) {
 		}
 #define PORT_ATTRIBUTE(name, func) \
 		else if (strcmp(argv[0], #name) == 0) { \
-			int i; \
 			unsigned short port; \
 			if (argc < 3) { \
 				fputs("Usage: " #name " [" #name "] [port]\n", \
@@ -414,7 +379,7 @@ Sitefile *parseSitefile(char *path) {
 			fprintf(stderr, "Unknown sitefile command %s", argv[0]);
 			goto error;
 		}
-		freeTokens(argc, argv);
+		freecommand(argc, argv);
 		ret->content[ret->size].respondto = respondto;
 		if (host == NULL)
 			regcomp(&ret->content[ret->size].host, ".*", cflags);
@@ -431,7 +396,7 @@ Sitefile *parseSitefile(char *path) {
 		ret->size++;
 	}
 error:
-	freeTokens(argc, argv);
+	freecommand(argc, argv);
 nterror:
 	freeSitefile(ret);
 	return NULL;
@@ -439,11 +404,20 @@ nterror:
 
 void freeSitefile(Sitefile *site) {
 	long i;
-	for (i = 0; i < site->size; i++) {
+	for (i = 0; i < site->size; ++i) {
 		regfree(&site->content[i].path);
 		regfree(&site->content[i].host);
+		/* This doesn't break because free(NULL) is harmless. */
+
 		free(site->content[i].arg);
+		free(site->content[i].ports);
+		free(site->content[i].contenttype);
 	}
 	free(site->content);
+	for (i = 0; i < site->portcount; ++i) {
+		free(site->ports[i].key);
+		free(site->ports[i].cert);
+	}
+	free(site->ports);
 	free(site);
 }
