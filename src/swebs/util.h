@@ -22,6 +22,8 @@
 
 int initLogging(char *path);
 
+#define LEN(arr) (sizeof (arr) / sizeof (*arr))
+
 int smalloc(size_t size);
 /* returns an id passed to saddr, or -1 on error */
 void *saddr(int id);

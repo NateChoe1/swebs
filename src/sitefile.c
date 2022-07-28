@@ -33,6 +33,7 @@
  * good.
  * */
 
+#define CFLAGS (REG_EXTENDED | REG_ICASE)
 
 typedef enum {
 	ARG,
@@ -185,27 +186,223 @@ static int getports(unsigned short **ports, int *portcount, char *data) {
 	}
 }
 
-Sitefile *parseSitefile(char *path) {
-	FILE *file;
-	RequestType respondto = GET;
-	const int cflags = REG_EXTENDED | REG_ICASE;
-	char *host = NULL;
-	int argc;
-	char **argv;
-	Sitefile *ret;
+typedef struct {
+	RequestType respondto;
+	char *host;
 	unsigned short *ports;
 	int portcount;
 	char *contenttype;
+} LocalVars;
+
+typedef enum {
+	DATA_CHANGE,
+	SITE_SPEC,
+	COMMAND_RET_ERROR
+} CommandReturn;
+
+static CommandReturn localvar(LocalVars *vars, Sitefile *sitefile,
+		int argc, char **argv) {
+	if (argc < 3)
+		return COMMAND_RET_ERROR;
+	if (strcmp(argv[1], "respondto") == 0) {
+		if ((vars->respondto = getType(argv[2])) == INVALID)
+			return COMMAND_RET_ERROR;
+		return DATA_CHANGE;
+	}
+	if (strcmp(argv[1], "host") == 0) {
+		free(vars->host);
+		vars->host = xstrdup(argv[2]);
+		return DATA_CHANGE;
+	}
+	else if (strcmp(argv[1], "port") == 0) {
+		free(vars->ports);
+		if (getports(&vars->ports, &vars->portcount, argv[2])) {
+			fprintf(stderr, "Invalid port list %s\n", argv[2]);
+			return COMMAND_RET_ERROR;
+		}
+		return DATA_CHANGE;
+	}
+	else if (strcmp(argv[1], "type") == 0) {
+		free(vars->contenttype);
+		vars->contenttype = strdup(argv[2]);
+		return DATA_CHANGE;
+	}
+	return COMMAND_RET_ERROR;
+}
+
+static CommandReturn globalvar(LocalVars *vars, Sitefile *sitefile,
+		int argc, char **argv) {
+	if (argc < 3)
+		return COMMAND_RET_ERROR;
+	if (strcmp(argv[1], "library") == 0) {
+#if DYNAMIC_LINKED_PAGES
+		sitefile->getResponse = loadGetResponse(argv[2]);
+		return DATA_CHANGE;
+#else
+		fputs("This version of swebs has no dynamic page support\n",
+				stderr);
+		return COMMAND_RET_ERROR;
+#endif
+	}
+	return COMMAND_RET_ERROR;
+}
+
+static CommandReturn declareport(LocalVars *vars, Sitefile *sitefile,
+		int argc, char **argv) {
+	Port newport;
+	int i;
+	if (argc < 3) {
+		fputs("Usage: declare [transport] [port]\n", stderr);
+		return COMMAND_RET_ERROR;
+	}
+	newport.num = atoi(argv[2]);
+
+	for (i = 0; i < sitefile->portcount; ++i) {
+		if (sitefile->ports[i].num == newport.num) {
+			fprintf(stderr, "Port %hu declared multiple times\n",
+					newport.num);
+			return COMMAND_RET_ERROR;
+		}
+	}
+
+	if (strcmp(argv[1], "TCP") == 0)
+		newport.type = TCP;
+	else if (strcmp(argv[1], "TLS") == 0)
+		newport.type = TLS;
+	else {
+		fprintf(stderr, "Invalid transport %s\n", argv[1]);
+		return COMMAND_RET_ERROR;
+	}
+	newport.timeout = 2000;
+	newport.key = newport.cert = NULL;
+	if (sitefile->portcount >= sitefile->portalloc) {
+		sitefile->portalloc *= 2;
+		sitefile->ports = xrealloc(sitefile->ports,
+			sitefile->portalloc * sizeof *sitefile->ports);
+	}
+	memcpy(sitefile->ports + sitefile->portcount, &newport,
+			sizeof newport);
+	++sitefile->portcount;
+	return DATA_CHANGE;
+}
+
+static CommandReturn portvar(LocalVars *vars, Sitefile *sitefile,
+		int argc, char **argv) {
+#define PORT_ATTRIBUTE(name, func) \
+	if (strcmp(argv[0], #name) == 0) { \
+		int i; \
+		unsigned short port; \
+		if (argc < 3) { \
+			fputs("Usage: " #name " [" #name "] [port]\n", \
+					stderr); \
+			return COMMAND_RET_ERROR; \
+		} \
+		port = atoi(argv[2]); \
+		for (i = 0; i < sitefile->portcount; ++i) \
+			if (sitefile->ports[i].num == port) \
+				sitefile->ports[i].name = func(argv[1]); \
+		return DATA_CHANGE; \
+	}
+	PORT_ATTRIBUTE(key, xstrdup)
+	PORT_ATTRIBUTE(cert, xstrdup)
+	PORT_ATTRIBUTE(timeout, atoi)
+#undef PORT_ATTRIBUTE
+	return COMMAND_RET_ERROR;
+}
+
+static int expandsitefile(Sitefile *sitefile, char *regex) {
+	if (sitefile->size >= sitefile->alloc) {
+		SiteCommand *newcontent;
+		sitefile->alloc *= 2;
+		newcontent = xrealloc(sitefile->content, sitefile->alloc *
+				sizeof *newcontent);
+		sitefile->content = newcontent;
+	}
+
+	return regcomp(&sitefile->content[sitefile->size].path, regex, CFLAGS);
+}
+
+static char *getcodestring(const char *str) {
+	return getCode(atoi(str));
+}
+
+static CommandReturn defsitespec(LocalVars *vars, Sitefile *sitefile,
+		int argc, char **argv) {
+	const struct {
+		char *command;
+		char *(*getarg)(const char *);
+		Command type;
+	} sitespecs[] = {
+		{"read", strdup, READ},
+		{"throw", getcodestring, THROW},
+	};
+	int i;
+	if (argc < 3)
+		return COMMAND_RET_ERROR;
+	expandsitefile(sitefile, argv[1]);
+	for (i = 0; i < LEN(sitespecs); ++i) {
+		if (strcmp(argv[0], sitespecs[i].command) == 0) {
+			sitefile->content[sitefile->size].arg =
+				sitespecs[i].getarg(argv[2]);
+			if (sitefile->content[sitefile->size].arg == NULL)
+				return COMMAND_RET_ERROR;
+			sitefile->content[sitefile->size].command =
+				sitespecs[i].type;
+			return SITE_SPEC;
+		}
+	}
+	return COMMAND_RET_ERROR;
+}
+
+static CommandReturn linkedsitespec(LocalVars *vars, Sitefile *sitefile,
+		int argc, char **argv) {
+#if DYNAMIC_LINKED_PAGES
+	if (argc < 2)
+		return COMMAND_RET_ERROR;
+	expandsitefile(sitefile, argv[1]);
+	sitefile->content[sitefile->size].command = LINKED;
+	return SITE_SPEC;
+#else
+	fputs("This version of swebs doesn't have linked page support", stderr);
+	return COMMAND_RET_ERROR;
+#endif
+}
+
+Sitefile *parseSitefile(char *path) {
+	FILE *file;
+	int argc;
+	char **argv;
+	Sitefile *ret;
+	const struct {
+		char *name;
+		CommandReturn (*updatesitefile)(LocalVars *vars,
+				Sitefile *sitefile,
+				int argc, char **argv);
+	} commandspec[] = {
+		{"set",     localvar},
+		{"define",  globalvar},
+		{"read",    defsitespec},
+		{"throw",   defsitespec},
+		{"linked",  linkedsitespec},
+		{"declare", declareport},
+		{"key",     portvar},
+		{"cert",    portvar},
+		{"timeout", portvar},
+	};
+	LocalVars vars;
 
 	file = fopen(path, "r");
 	if (file == NULL)
 		return NULL;
+
+	vars.respondto = GET;
+	vars.host = xstrdup(".*");
+	vars.ports = xmalloc(sizeof *vars.ports);
+	vars.ports[0] = 80;
+	vars.portcount = 1;
+	vars.contenttype = xstrdup("text/html");
+
 	ret = xmalloc(sizeof *ret);
-
-	ports = malloc(sizeof *ports);
-	ports[0] = 80;
-	portcount = 1;
-
 	ret->size = 0;
 	ret->alloc = 50;
 	ret->content = xmalloc(ret->alloc * sizeof *ret->content);
@@ -216,15 +413,13 @@ Sitefile *parseSitefile(char *path) {
 	ret->getResponse = NULL;
 #endif
 
-	contenttype = xstrdup("text/html");
-
 	for (;;) {
 		int i;
 		CommandType commandtype;
+nextcommand:
 		commandtype = getcommand(file, &argc, &argv);
 		switch (commandtype) {
 		case PAST_END:
-			free(ports);
 			for (i = 0; i < ret->portcount; ++i) {
 				Port *port = ret->ports + i;
 				if (port->type == TLS &&
@@ -235,8 +430,9 @@ Sitefile *parseSitefile(char *path) {
 					goto nterror;
 				}
 			}
-			free(contenttype);
-			free(host);
+			free(vars.ports);
+			free(vars.contenttype);
+			free(vars.host);
 			fclose(file);
 			return ret;
 		case COMMAND_ERROR:
@@ -244,168 +440,43 @@ Sitefile *parseSitefile(char *path) {
 		case NORMAL:
 			break;
 		}
-		if (strcmp(argv[0], "set") == 0) {
-			if (argc < 3)
-				goto error;
-			if (strcmp(argv[1], "respondto") == 0) {
-				respondto = getType(argv[2]);
-				if (respondto == INVALID)
-					goto error;
-			}
-			else if (strcmp(argv[1], "host") == 0) {
-				free(host);
-				host = xstrdup(argv[2]);
-			}
-			else if (strcmp(argv[1], "port") == 0) {
-				free(ports);
-				if (getports(&ports, &portcount, argv[2])) {
-					fprintf(stderr, "Invalid port list %s\n",
-							argv[2]);
+		for (i = 0; i < LEN(commandspec); ++i) {
+			if (strcmp(argv[0], commandspec[i].name) == 0) {
+				switch (commandspec[i].updatesitefile(&vars,
+							ret, argc, argv)) {
+				case DATA_CHANGE:
+					goto nextcommand;
+				case SITE_SPEC:
+					goto newsitespec;
+				case COMMAND_RET_ERROR:
 					goto error;
 				}
+				break;
 			}
-			else if (strcmp(argv[1], "type") == 0) {
-				free(contenttype);
-				contenttype = strdup(argv[2]);
-			}
-			else
-				goto error;
-			continue;
 		}
-		else if (strcmp(argv[0], "define") == 0) {
-			if (argc < 3)
-				goto error;
-			else if (strcmp(argv[1], "library") == 0) {
-#if DYNAMIC_LINKED_PAGES
-				ret->getResponse = loadGetResponse(argv[2]);
-#else
-				fputs(
-"This version of swebs has no dynamic page support\n", stderr);
-				exit(EXIT_FAILURE);
-#endif
-			}
-			else
-				goto error;
-			continue;
-		}
-		else if (strcmp(argv[0], "declare") == 0) {
-			Port newport;
-			if (argc < 3) {
-				fputs(
-"Usage: declare [transport] [port]\n", stderr);
-				goto error;
-			}
-			newport.num = atoi(argv[2]);
-
-			for (i = 0; i < ret->portcount; ++i) {
-				if (ret->ports[i].num == newport.num) {
-					fprintf(stderr,
-"Port %hu declared multiple times\n", newport.num);
-					goto error;
-				}
-			}
-
-			if (strcmp(argv[1], "TCP") == 0)
-				newport.type = TCP;
-			else if (strcmp(argv[1], "TLS") == 0)
-				newport.type = TLS;
-			else {
-				fprintf(stderr, "Invalid transport %s\n",
-						argv[1]);
-				goto error;
-			}
-			newport.timeout = 2000;
-			newport.key = newport.cert = NULL;
-			if (ret->portcount >= ret->portalloc) {
-				ret->portalloc *= 2;
-				ret->ports = xrealloc(ret->ports,
-					ret->portalloc * sizeof *ret->ports);
-			}
-			memcpy(ret->ports + ret->portcount, &newport,
-					sizeof newport);
-			++ret->portcount;
-			continue;
-		}
-#define PORT_ATTRIBUTE(name, func) \
-		else if (strcmp(argv[0], #name) == 0) { \
-			unsigned short port; \
-			if (argc < 3) { \
-				fputs("Usage: " #name " [" #name "] [port]\n", \
-						stderr); \
-				goto error; \
-			} \
-			port = atoi(argv[2]); \
-			for (i = 0; i < ret->portcount; ++i) \
-				if (ret->ports[i].num == port) \
-					ret->ports[i].name = func(argv[1]); \
-			continue; \
-		}
-		PORT_ATTRIBUTE(key, xstrdup)
-		PORT_ATTRIBUTE(cert, xstrdup)
-		PORT_ATTRIBUTE(timeout, atoi)
-#undef PORT_ATTRIBUTE
-		if (ret->size >= ret->alloc) {
-			SiteCommand *newcontent;
-			ret->alloc *= 2;
-			newcontent = realloc(ret->content, ret->alloc *
-					sizeof *newcontent);
-			if (newcontent == NULL)
-				goto error;
-			ret->content = newcontent;
-		}
-
-		if (regcomp(&ret->content[ret->size].path, argv[1],
-		            cflags))
-			goto error;
-
-		if (strcmp(argv[0], "read") == 0) {
-			if (argc < 3)
-				goto error;
-			ret->content[ret->size].arg = xstrdup(argv[2]);
-			if (ret->content[ret->size].arg == NULL)
-				goto error;
-			ret->content[ret->size].command = READ;
-		}
-		else if (strcmp(argv[0], "throw") == 0) {
-			if (argc < 3)
-				goto error;
-			ret->content[ret->size].arg = getCode(atoi(argv[2]));
-			if (ret->content[ret->size].arg == NULL)
-				goto error;
-			ret->content[ret->size].command = THROW;
-		}
-		else if (strcmp(argv[0], "linked") == 0) {
-#if DYNAMIC_LINKED_PAGES
-			ret->content[ret->size].command = LINKED;
-#else
-			fputs(
-"This version of swebs doesn't have linked page support", stderr);
-			goto error;
-#endif
-		}
-		else {
-			fprintf(stderr, "Unknown sitefile command %s", argv[0]);
-			goto error;
-		}
+		fprintf(stderr, "Unknown sitefile command %s", argv[0]);
+		goto error;
+newsitespec:
 		freecommand(argc, argv);
-		ret->content[ret->size].respondto = respondto;
-		if (host == NULL)
-			regcomp(&ret->content[ret->size].host, ".*", cflags);
-		else
-			regcomp(&ret->content[ret->size].host, host, cflags);
+		ret->content[ret->size].respondto = vars.respondto;
+		regcomp(&ret->content[ret->size].host, vars.host, CFLAGS);
 
-		ret->content[ret->size].ports = xmalloc(portcount *
+		ret->content[ret->size].ports = xmalloc(vars.portcount *
 				sizeof *ret->content[ret->size].ports);
-		memcpy(ret->content[ret->size].ports, ports, portcount * sizeof *ports);
-		ret->content[ret->size].portcount = portcount;
+		memcpy(ret->content[ret->size].ports, vars.ports,
+				vars.portcount * sizeof *vars.ports);
+		ret->content[ret->size].portcount = vars.portcount;
 
-		ret->content[ret->size].contenttype = xstrdup(contenttype);
+		ret->content[ret->size].contenttype = xstrdup(vars.contenttype);
 
-		ret->size++;
+		++ret->size;
 	}
 error:
 	freecommand(argc, argv);
 nterror:
+	free(vars.ports);
+	free(vars.contenttype);
+	free(vars.host);
 	freeSitefile(ret);
 	return NULL;
 }
