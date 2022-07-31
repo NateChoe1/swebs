@@ -49,8 +49,9 @@ static struct sockaddr_un addr;
 /* We want to be able to handle a signal at any time, so some global variables
  * are needed. */
 static const int signals[] = {
-	SIGPIPE, SIGHUP, SIGINT, SIGQUIT, SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE,
-	SIGKILL, SIGSEGV, SIGTERM, SIGTTIN, SIGTTOU, SIGURG, SIGXCPU, SIGXFSZ,
+	SIGPIPE, SIGHUP, SIGINT, SIGQUIT, SIGILL, SIGTRAP, SIGABRT, SIGBUS,
+	SIGFPE, SIGKILL, SIGSEGV, SIGTERM, SIGTTIN, SIGTTOU, SIGURG, SIGXCPU,
+	SIGXFSZ,
 };
 
 static void exitClean(int signal) {
@@ -196,6 +197,7 @@ int main(int argc, char **argv) {
 					if (pending[j] < pending[lowestproc])
 						lowestproc = j;
 				sendFd(fd, runners[lowestproc].fd, &i, sizeof i);
+				close(fd);
 			}
 		}
 	}

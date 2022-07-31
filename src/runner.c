@@ -31,19 +31,39 @@
 #include <swebs/sitefile.h>
 #include <swebs/connections.h>
 
-void runServer(int connfd, Sitefile *site, volatile int *pending, int id) {
-	int allocConns = 100;
+typedef struct {
 	struct pollfd *fds;
-	Connection *connections;
-	int connCount;
+	Connection *conns;
+	int len;
+	int alloc;
+} ConnList;
+
+static int createConnList(ConnList *list);
+static int addConnList(ConnList *list, struct pollfd *fd, Connection *conn);
+static void removeConnList(ConnList *list, int ind);
+static void pollConnList(ConnList *list);
+static void freeConnList(ConnList *list);
+
+void runServer(int connfd, Sitefile *site, volatile int *pending, int id) {
 	Context **contexts;
 	int i;
+	ConnList conns;
 
-	connCount = 1;
-	fds = xmalloc(allocConns * sizeof *fds);
-	connections = xmalloc(allocConns * sizeof *connections);
-	fds[0].fd = connfd;
-	fds[0].events = POLLIN;
+	if (createConnList(&conns))
+		return;
+
+	{
+		struct pollfd newfd;
+		Connection newconn;
+
+		newfd.fd = connfd;
+		newfd.events = POLLIN;
+
+		if (addConnList(&conns, &newfd, &newconn)) {
+			freeConnList(&conns);
+			return;
+		}
+	}
 	/* connections are 1 indexed because fds[0] is the notify fd. I hate
 	 * that poll() forces us to do these hacks. */
 
@@ -86,86 +106,106 @@ void runServer(int connfd, Sitefile *site, volatile int *pending, int id) {
 	}
 
 	for (;;) {
-		poll(fds, connCount, -1);
+		pollConnList(&conns);
 
-		createFormatLog("poll() finished with %d connections", connCount);
+		createFormatLog("poll() finished with %d connections",
+				conns.len);
 
-		for (i = 1; i < connCount; i++) {
-			if (fds[i].revents & POLLIN) {
+		for (i = 1; i < conns.len; i++) {
+			if (conns.fds[i].revents & POLLIN) {
 				createFormatLog("Connection %d has data", i);
-				if (updateConnection(connections + i, site))
-					goto remove;
-			}
-			continue;
-remove:
-			{
-				int remove, replace;
-				remove = i;
-				replace = connCount - 1;
-				freeConnection(connections + remove);
-
-				memcpy(fds + remove, fds + replace,
-						sizeof(struct pollfd));
-				memcpy(connections + remove,
-						connections + replace,
-						sizeof(struct pollfd));
-
-				--pending[id];
-
-				--i;
-				--connCount;
+				if (updateConnection(conns.conns + i, site)) {
+					removeConnList(&conns, i);
+					--i;
+				}
 			}
 		}
 
-		if (fds[0].revents & POLLIN) {
+		if (conns.fds[0].revents & POLLIN) {
 			Stream *newstream;
-			int newfd;
+			Connection newconn;
 			int portind;
+			struct pollfd newfd;
+
 			createLog("Main fd has data");
-			newfd = recvFd(connfd, &portind, sizeof portind);
-			if (newfd < 0) {
+			newfd.fd = recvFd(connfd, &portind, sizeof portind);
+			if (newfd.fd < 0) {
 				createLog("Message received that included an invalid fd, quitting");
 				exit(EXIT_FAILURE);
 			}
+			newfd.events = POLLIN;
 
-			newstream = createStream(contexts[portind], O_NONBLOCK, newfd);
+			newstream = createStream(contexts[portind],
+					O_NONBLOCK, newfd.fd);
 			if (newstream == NULL) {
 				createLog(
 "Stream couldn't be created from file descriptor");
-				shutdown(newfd, SHUT_RDWR);
-				close(newfd);
+				shutdown(newfd.fd, SHUT_RDWR);
+				close(newfd.fd);
 				continue;
 			}
 
-			if (connCount >= allocConns) {
-				struct pollfd *newfds;
-				Connection *newconns;
-				allocConns *= 2;
-				newfds = realloc(fds,
-					sizeof(struct pollfd) * allocConns);
-				if (newfds == NULL) {
-					allocConns /= 2;
-					continue;
-				}
-				fds = newfds;
-
-				newconns = realloc(connections,
-					sizeof(Connection) * allocConns);
-				if (newconns == NULL) {
-					allocConns /= 2;
-					continue;
-				}
-				connections = newconns;
-			}
-
-			if (newConnection(newstream, connections + connCount, portind)) {
+			if (newConnection(newstream, &newconn, portind)) {
 				createLog("Couldn't initialize connection from stream");
 				continue;
 			}
-			fds[connCount].fd = newfd;
-			fds[connCount].events = POLLIN;
-			connCount++;
+
+			if (addConnList(&conns, &newfd, &newconn)) {
+				freeConnection(&newconn);
+				continue;
+			}
 			pending[id]++;
 		}
 	}
+}
+
+static int createConnList(ConnList *list) {
+	list->alloc = 100;
+	list->fds = xmalloc(list->alloc * sizeof *list->fds);
+	list->conns = xmalloc(list->alloc * sizeof *list->conns);
+	list->len = 0;
+	return 0;
+}
+
+static int addConnList(ConnList *list, struct pollfd *fd, Connection *conn) {
+	if (list->len >= list->alloc) {
+		int newalloc;
+		struct pollfd *newfds;
+		Connection *newconns;
+		newalloc = list->alloc * 2;
+		newfds = realloc(list->fds, newalloc * sizeof *list->fds);
+		if (newfds == NULL)
+			return 1;
+		newconns = realloc(list->conns, newalloc * sizeof *list->conns);
+		if (newconns == NULL)
+			return 1;
+		list->alloc = newalloc;
+		list->fds = newfds;
+		list->conns = newconns;
+	}
+	memcpy(list->fds + list->len, fd, sizeof *fd);
+	memcpy(list->conns + list->len, conn, sizeof *conn);
+	++list->len;
+	return 0;
+}
+
+static void removeConnList(ConnList *list, int ind) {
+	const int replace = list->len - 1;
+
+	memcpy(list->fds + ind, list->fds + replace, sizeof *list->fds);
+	memcpy(list->conns + ind, list->conns + replace, sizeof *list->conns);
+
+	--list->len;
+}
+
+static void pollConnList(ConnList *list) {
+	poll(list->fds, list->len, -1);
+}
+
+static void freeConnList(ConnList *list) {
+	int i;
+	for (i = 0; i < list->len; ++i)
+		freeConnection(list->conns + i);
+	free(list->fds);
+	free(list->conns);
 }

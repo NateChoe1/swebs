@@ -486,8 +486,6 @@ void freeSitefile(Sitefile *site) {
 	for (i = 0; i < site->size; ++i) {
 		regfree(&site->content[i].path);
 		regfree(&site->content[i].host);
-		/* This doesn't break because free(NULL) is harmless. */
-
 		free(site->content[i].arg);
 		free(site->content[i].ports);
 		free(site->content[i].contenttype);
