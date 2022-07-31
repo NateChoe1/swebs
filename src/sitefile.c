@@ -94,6 +94,7 @@ static void gettoken(FILE *file, Token *ret) {
 		}
 		c = fgetc(file);
 		if (isspace(c) || c == EOF) {
+			ungetc(c, file);
 			data[len] = '\0';
 			ret->type = ARG;
 			ret->data = data;
@@ -426,7 +427,7 @@ nextcommand:
 					(port->key == NULL ||
 					 port->cert == NULL)) {
 					fprintf(stderr,
-"Port %hu declarS without proper TLS files\n", port->num);
+"Port %hu declared without proper TLS files\n", port->num);
 					goto nterror;
 				}
 			}

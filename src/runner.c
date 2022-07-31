@@ -98,8 +98,8 @@ void runServer(int connfd, Sitefile *site, volatile int *pending, int id) {
 				createErrorLog("seteuid() failed", errno);
 		root = getpwnam("root");
 		if (root != NULL) {
-		/* I don't know why this if statement could be false but we have it
-		 * just in case. */
+		/* I don't know why this if statement could be false but we have
+		 * it just in case. */
 			if (geteuid() == root->pw_uid)
 				createLog("swebs probably should not be run as root");
 		}
