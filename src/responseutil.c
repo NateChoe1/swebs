@@ -157,6 +157,7 @@ static int sendKnownPipeValist(Stream *stream, const char *status,
 			return totalSent != len;
 		if (resilientSend(stream, buffer, inBuffer))
 			return 1;
+		totalSent += inBuffer;
 	}
 }
 

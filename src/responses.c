@@ -307,6 +307,39 @@ static int wasasked(char *request, char *type) {
 	return 0;
 }
 
+static int sendCertainResponse(Connection *conn, Sitefile *site, int index) {
+	int ret;
+	ret = 0;
+	switch (site->content[index].command) {
+	case READ:
+		ret = readResponse(conn, site->content + index);
+		break;
+	case THROW:
+		ret = sendErrorResponse(conn->stream, site->content[index].arg);
+		break;
+	case LINKED:
+#if DYNAMIC_LINKED_PAGES
+		if (!site->getResponse) {
+			sendErrorResponse(conn->stream, ERROR_500);
+			ret = 1;
+		}
+		else
+			ret = linkedResponse(conn, site->getResponse,
+					site->content[index].contenttype);
+#else
+		/* Unreachable state (if a linked response was in the sitefile,
+		 * the parse would've thrown an error) */
+		ret = sendErrorResponse(conn->stream, ERROR_500);
+#endif
+		break;
+	default:
+		sendErrorResponse(conn->stream, ERROR_500);
+		return 1;
+	}
+	resetConnection(conn);
+	return ret;
+}
+
 int sendResponse(Connection *conn, Sitefile *site) {
 	char *host = NULL;
 	char *accept = NULL;
@@ -337,41 +370,8 @@ int sendResponse(Connection *conn, Sitefile *site) {
 			continue;
 		}
 foundport:
-		if (fullmatch(&site->content[i].path, conn->path.data) == 0) {
-			switch (site->content[i].command) {
-				case READ:
-					if (readResponse(conn,
-							site->content + i))
-						return 1;
-					break;
-				case THROW:
-					if (sendErrorResponse(conn->stream,
-							site->content[i].arg))
-						return 1;
-					break;
-				case LINKED:
-#if DYNAMIC_LINKED_PAGES
-					if (!site->getResponse)
-						sendErrorResponse(conn->stream,
-								ERROR_500);
-					else if (linkedResponse(conn,
-							site->getResponse,
-							site->content[i].contenttype))
-						return 1;
-#else
-					/* Unreachable state (filtered by startup) */
-					sendErrorResponse(conn->stream,
-							ERROR_500);
-#endif
-					break;
-				default:
-					sendErrorResponse(conn->stream,
-							ERROR_500);
-					return 1;
-			}
-			resetConnection(conn);
-			return 0;
-		}
+		if (fullmatch(&site->content[i].path, conn->path.data) == 0)
+			return sendCertainResponse(conn, site, i);
 	}
 	sendErrorResponse(conn->stream, ERROR_404);
 	return 1;
