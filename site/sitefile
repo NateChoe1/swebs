@@ -6,8 +6,8 @@ key domain.key 8001
 cert domain.crt 8001
 # Port 8001 can have TLS, but it's self signed and very bad.
 
-timeout 200000 8000
-timeout 200000 8001
+timeout 20000 8000
+timeout 20000 8001
 # Set these values for the ports
 
 set port 8000

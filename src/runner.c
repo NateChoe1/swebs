@@ -115,6 +115,7 @@ void runServer(int connfd, Sitefile *site, volatile int *pending, int id) {
 			if (conns.fds[i].revents & POLLIN) {
 				createFormatLog("Connection %d has data", i);
 				if (updateConnection(conns.conns + i, site)) {
+					freeConnection(conns.conns + i);
 					removeConnList(&conns, i);
 					--i;
 				}
