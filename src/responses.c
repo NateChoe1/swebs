@@ -342,7 +342,7 @@ static int sendCertainResponse(Connection *conn, Sitefile *site, int index) {
 
 int sendResponse(Connection *conn, Sitefile *site) {
 	char *host = NULL;
-	char *accept = NULL;
+	char *accept = "*/*";
 	int i;
 	for (i = 0; i < conn->fieldCount; i++) {
 		if (strcmp(conn->fields[i].field, "Host") == 0)
@@ -350,7 +350,7 @@ int sendResponse(Connection *conn, Sitefile *site) {
 		else if (strcmp(conn->fields[i].field, "Accept") == 0)
 			accept = conn->fields[i].value;
 	}
-	if (host == NULL || accept == NULL) {
+	if (host == NULL) {
 		sendErrorResponse(conn->stream, ERROR_400);
 		return 1;
 	}
