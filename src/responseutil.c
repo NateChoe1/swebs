@@ -159,6 +159,7 @@ static int sendKnownPipeValist(Stream *stream, const char *status,
 			return 1;
 		totalSent += inBuffer;
 	}
+	close(fd);
 }
 
 int sendKnownPipe(Stream *stream, const char *status, int fd, size_t len, ...) {
