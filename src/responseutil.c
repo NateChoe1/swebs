@@ -46,6 +46,10 @@ static int resilientSend(Stream *stream, void *data, size_t len) {
 	return left != 0;
 }
 
+static int sendString(Stream *stream, char *s) {
+	return resilientSend(stream, (void *) s, strlen(s));
+}
+
 static int sendStreamValist(Stream *stream, char *format, ...) {
 	va_list ap;
 	int len;
@@ -68,11 +72,10 @@ static int sendStreamValist(Stream *stream, char *format, ...) {
 	return 0;
 }
 
-static int sendHeaderValist(Stream *stream, const char *status, size_t len, va_list ap) {
+static int sendHeaderValist(Stream *stream, const char *status, va_list ap) {
 	if (sendStreamValist(stream,
 		"HTTP/1.1 %s\r\n"
-		CONST_FIELDS
-		"Content-Length: %lu\r\n", status, len))
+		CONST_FIELDS, status))
 		return 1;
 	for (;;) {
 		char *header;
@@ -83,27 +86,33 @@ static int sendHeaderValist(Stream *stream, const char *status, size_t len, va_l
 			return 1;
 	}
 	va_end(ap);
-	return resilientSend(stream, "\r\n", 2);
+	return 0;
 }
 
-int sendHeader(Stream *stream, const char *status, size_t len, ...) {
-	va_list ap;
-	va_start(ap, len);
-	return sendHeaderValist(stream, status, len, ap);
+static int sendHeaderKnown(Stream *stream, const char *status, size_t len, va_list ap) {
+	if (sendHeaderValist(stream, status, ap))
+		return 1;
+	return sendStreamValist(stream, "Content-Length: %lu\r\n\r\n", len);
+}
+
+static int sendHeaderChunked(Stream *stream, const char *status, va_list ap) {
+	if (sendHeaderValist(stream, status, ap))
+		return 1;
+	return sendString(stream, "Transfer-Encoding: chunked\r\n\r\n");
 }
 
 char *getCode(int code) {
 	switch (code) {
 		case 200:
-			return strdup(CODE_200);
+			return CODE_200;
 		case 400:
-			return strdup(ERROR_400);
+			return ERROR_400;
 		case 403:
-			return strdup(ERROR_403);
+			return ERROR_403;
 		case 404:
-			return strdup(ERROR_404);
+			return ERROR_404;
 		case 500:
-			return strdup(ERROR_500);
+			return ERROR_500;
 		default:
 			return NULL;
 	}
@@ -114,7 +123,7 @@ int sendStringResponse(Stream *stream, const char *status, char *str, ...) {
 	size_t len;
 	va_start(ap, str);
 	len = strlen(str);
-	if (sendHeaderValist(stream, status, len, ap))
+	if (sendHeaderKnown(stream, status, len, ap))
 		return 1;
 	return resilientSend(stream, str, len);
 }
@@ -139,7 +148,7 @@ int sendErrorResponse(Stream *stream, const char *error) {
 
 static int sendBinaryResponseValist(Stream *stream, const char *status,
 		void *data, size_t len, va_list ap) {
-	if (sendHeaderValist(stream, status, len, ap))
+	if (sendHeaderKnown(stream, status, len, ap))
 		return 1;
 	return resilientSend(stream, data, len);
 }
@@ -147,19 +156,28 @@ static int sendBinaryResponseValist(Stream *stream, const char *status,
 static int sendKnownPipeValist(Stream *stream, const char *status,
 		int fd, size_t len, va_list ap) {
 	size_t totalSent = 0;
-	sendHeaderValist(stream, status, len, ap);
+	int result;
+	sendHeaderKnown(stream, status, len, ap);
 	for (;;) {
 		char buffer[1024];
 		ssize_t inBuffer = read(fd, buffer, sizeof(buffer));
-		if (inBuffer < 0)
-			return 1;
-		if (inBuffer == 0)
-			return totalSent != len;
-		if (resilientSend(stream, buffer, inBuffer))
-			return 1;
+		if (inBuffer < 0) {
+			result = 1;
+			goto end;
+		}
+		if (inBuffer == 0) {
+			result = totalSent != len;
+			goto end;
+		}
+		if (resilientSend(stream, buffer, inBuffer)) {
+			result = 1;
+			goto end;
+		}
 		totalSent += inBuffer;
 	}
+end:
 	close(fd);
+	return result;
 }
 
 int sendKnownPipe(Stream *stream, const char *status, int fd, size_t len, ...) {
@@ -178,6 +196,7 @@ int sendBinaryResponse(Stream *stream, const char *status,
 int sendSeekableFile(Stream *stream, const char *status, int fd, ...) {
 	off_t len;
 	va_list ap;
+	va_start(ap, fd);
 	len = lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
 	va_start(ap, fd);
@@ -185,42 +204,25 @@ int sendSeekableFile(Stream *stream, const char *status, int fd, ...) {
 }
 
 int sendPipe(Stream *stream, const char *status, int fd, ...) {
-	size_t allocResponse = 1024;
-	size_t responseLen = 0;
-	char *response = malloc(allocResponse);
 	va_list ap;
-	if (response == NULL)
-		goto error;
-	for (;;) {
-		ssize_t len;
-		if (responseLen >= allocResponse) {
-			char *newresponse;
-			allocResponse *= 2;
-			newresponse = realloc(response, allocResponse);
-			if (newresponse == NULL)
-				goto error;
-			response = newresponse;
-		}
-		len = read(fd,
-			response + responseLen,
-			allocResponse - responseLen);
-		if (len < 0)
-			goto error;
-		else if (len == 0)
-			break;
-		responseLen += len;
-	}
-	close(fd);
-	sendHeaderValist(stream, CODE_200, responseLen, ap);
-	if (resilientSend(stream, response, responseLen)) {
-		free(response);
+	va_start(ap, fd);
+	if (sendHeaderChunked(stream, status, ap)) {
+		close(fd);
 		return 1;
 	}
-	free(response);
-	return 0;
-error:
+
+	for (;;) {
+		ssize_t len;
+		char buff[1024];
+
+		len = read(fd, buff, sizeof buff);
+		if (len <= 0) {
+			break;
+		}
+		sendStreamValist(stream, "%lx\r\n", len);
+		resilientSend(stream, buff, (size_t) len);
+		sendString(stream, "\r\n");
+	}
 	close(fd);
-	free(response);
-	sendErrorResponse(stream, ERROR_500);
-	return 1;
+	return 0;
 }

@@ -71,6 +71,7 @@ static void gettoken(FILE *file, Token *ret) {
 		case '#':
 			while (c != '\n' && c != EOF)
 				c = fgetc(file);
+			/* fallthrough */
 		case '\n':
 			ret->type = LINE_END;
 			return;
@@ -107,6 +108,7 @@ static void gettoken(FILE *file, Token *ret) {
 				ret->type = TOKEN_ERROR;
 				return;
 			}
+			/* fallthrough */
 		default:
 			data[len] = c;
 		}
@@ -203,6 +205,8 @@ typedef enum {
 
 static CommandReturn localvar(LocalVars *vars, Sitefile *sitefile,
 		int argc, char **argv) {
+	(void) sitefile;
+
 	if (argc < 3)
 		return COMMAND_RET_ERROR;
 	if (strcmp(argv[1], "respondto") == 0) {
@@ -233,6 +237,9 @@ static CommandReturn localvar(LocalVars *vars, Sitefile *sitefile,
 
 static CommandReturn globalvar(LocalVars *vars, Sitefile *sitefile,
 		int argc, char **argv) {
+	(void) sitefile;
+	(void) vars;
+
 	if (argc < 3)
 		return COMMAND_RET_ERROR;
 	if (strcmp(argv[1], "library") == 0) {
@@ -252,13 +259,15 @@ static CommandReturn declareport(LocalVars *vars, Sitefile *sitefile,
 		int argc, char **argv) {
 	Port newport;
 	int i;
+	(void) vars;
+
 	if (argc < 3) {
 		fputs("Usage: declare [transport] [port]\n", stderr);
 		return COMMAND_RET_ERROR;
 	}
 	newport.num = atoi(argv[2]);
 
-	for (i = 0; i < sitefile->portcount; ++i) {
+	for (i = 0; i < (int) sitefile->portcount; ++i) {
 		if (sitefile->ports[i].num == newport.num) {
 			fprintf(stderr, "Port %hu declared multiple times\n",
 					newport.num);
@@ -289,9 +298,11 @@ static CommandReturn declareport(LocalVars *vars, Sitefile *sitefile,
 
 static CommandReturn portvar(LocalVars *vars, Sitefile *sitefile,
 		int argc, char **argv) {
+	(void) vars;
+	(void) sitefile;
 #define PORT_ATTRIBUTE(name, func) \
 	if (strcmp(argv[0], #name) == 0) { \
-		int i; \
+		size_t i; \
 		unsigned short port; \
 		if (argc < 3) { \
 			fputs("Usage: " #name " [" #name "] [port]\n", \
@@ -338,10 +349,12 @@ static CommandReturn defsitespec(LocalVars *vars, Sitefile *sitefile,
 		{"throw", getcodestring, THROW},
 	};
 	int i;
+	(void) vars;
+
 	if (argc < 3)
 		return COMMAND_RET_ERROR;
 	expandsitefile(sitefile, argv[1]);
-	for (i = 0; i < LEN(sitespecs); ++i) {
+	for (i = 0; i < (int) LEN(sitespecs); ++i) {
 		if (strcmp(argv[0], sitespecs[i].command) == 0) {
 			sitefile->content[sitefile->size].arg =
 				sitespecs[i].getarg(argv[2]);
@@ -357,6 +370,7 @@ static CommandReturn defsitespec(LocalVars *vars, Sitefile *sitefile,
 
 static CommandReturn linkedsitespec(LocalVars *vars, Sitefile *sitefile,
 		int argc, char **argv) {
+	(void) vars;
 #if DYNAMIC_LINKED_PAGES
 	if (argc < 2)
 		return COMMAND_RET_ERROR;
@@ -364,6 +378,9 @@ static CommandReturn linkedsitespec(LocalVars *vars, Sitefile *sitefile,
 	sitefile->content[sitefile->size].command = LINKED;
 	return SITE_SPEC;
 #else
+	(void) sitefile;
+	(void) argc;
+	(void) argv;
 	fputs("This version of swebs doesn't have linked page support", stderr);
 	return COMMAND_RET_ERROR;
 #endif
@@ -415,7 +432,7 @@ Sitefile *parseSitefile(char *path) {
 #endif
 
 	for (;;) {
-		int i;
+		size_t i;
 		CommandType commandtype;
 nextcommand:
 		commandtype = getcommand(file, &argc, &argv);
@@ -483,7 +500,7 @@ nterror:
 }
 
 void freeSitefile(Sitefile *site) {
-	long i;
+	size_t i;
 	for (i = 0; i < site->size; ++i) {
 		regfree(&site->content[i].path);
 		regfree(&site->content[i].host);

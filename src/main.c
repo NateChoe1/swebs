@@ -55,6 +55,7 @@ static const int signals[] = {
 };
 
 static void exitClean(int signal) {
+	(void) signal;
 	close(mainfd);
 	remove(addr.sun_path);
 	exit(EXIT_SUCCESS);
@@ -84,7 +85,7 @@ static void createProcess(int id) {
 			return;
 	}
 
-	for (i = 0; i < sizeof(signals) / sizeof(signals[0]); i++)
+	for (i = 0; i < (int) LEN(signals); i++)
 		unsetsignal(signals[i]);
 	unsetsignal(SIGCHLD);
 	setsignal(SIGPIPE, SIG_IGN);
@@ -107,6 +108,9 @@ static void createProcess(int id) {
 static void remakeChild(int signal) {
 	pid_t pid;
 	int i, status;
+
+	(void) signal;
+
 	pid = wait(&status);
 	createFormatLog("A child has died, recreating: %s",
 			strsignal(WTERMSIG(status)));
@@ -130,7 +134,7 @@ int main(int argc, char **argv) {
 
 	listeners = xmalloc(site->portcount * sizeof *listeners);
 	pollfds = xmalloc(site->portcount * sizeof *pollfds);
-	for (i = 0; i < site->portcount; ++i) {
+	for (i = 0; i < (int) site->portcount; ++i) {
 		listeners[i] = createListener(site->ports[i].num, backlog);
 		if (listeners[i] == NULL) {
 			fprintf(stderr, "Failed to listen on port %hu\n",
@@ -169,7 +173,7 @@ int main(int argc, char **argv) {
 	for (i = 0; i < processes - 1; i++)
 		createProcess(i);
 
-	for (i = 0; i < sizeof(signals) / sizeof(signals[0]); i++)
+	for (i = 0; i < (int) LEN(signals); i++)
 		setsignal(signals[i], exitClean);
 
 	setsignal(SIGCHLD, remakeChild);
@@ -188,7 +192,7 @@ int main(int argc, char **argv) {
 
 		createLog("Accepted stream");
 
-		for (i = 0; i < site->portcount; ++i) {
+		for (i = 0; i < (int) site->portcount; ++i) {
 			if (pollfds[i].revents & POLLIN) {
 				int j, lowestproc, fd;
 				fd = acceptConnection(listeners[i]);

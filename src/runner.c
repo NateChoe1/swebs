@@ -69,7 +69,7 @@ void runServer(int connfd, Sitefile *site, volatile int *pending, int id) {
 
 	contexts = xmalloc(site->portcount * sizeof *contexts);
 
-	for (i = 0; i < site->portcount; ++i) {
+	for (i = 0; i < (int) site->portcount; ++i) {
 		Port *port = site->ports + i;
 		switch (port->type) {
 			case TCP:

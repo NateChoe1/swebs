@@ -179,7 +179,7 @@ static int fullmatch(regex_t *regex, char *str) {
 	regmatch_t match;
 	if (regexec(regex, str, 1, &match, 0))
 		return 1;
-	return match.rm_so != 0 || match.rm_eo != strlen(str);
+	return match.rm_so != 0 || match.rm_eo != (int) strlen(str);
 }
 
 static char *nextdirective(char *header) {
@@ -344,7 +344,7 @@ int sendResponse(Connection *conn, Sitefile *site) {
 	char *host = NULL;
 	char *accept = "*/*";
 	int i;
-	for (i = 0; i < conn->fieldCount; i++) {
+	for (i = 0; i < (int) conn->fieldCount; i++) {
 		if (strcmp(conn->fields[i].field, "Host") == 0)
 			host = conn->fields[i].value;
 		else if (strcmp(conn->fields[i].field, "Accept") == 0)
@@ -354,7 +354,7 @@ int sendResponse(Connection *conn, Sitefile *site) {
 		sendErrorResponse(conn->stream, ERROR_400);
 		return 1;
 	}
-	for (i = 0; i < site->size; i++) {
+	for (i = 0; i < (int) site->size; i++) {
 		if (site->content[i].respondto != conn->type)
 			continue;
 		if (fullmatch(&site->content[i].host, host))

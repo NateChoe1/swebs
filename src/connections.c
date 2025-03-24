@@ -79,7 +79,7 @@ void resetConnection(Connection *conn) {
 	conn->progress = RECEIVE_REQUEST;
 	free(conn->body);
 	conn->body = NULL;
-	for (i = 0; i < conn->fieldCount; i++) {
+	for (i = 0; i < (long) conn->fieldCount; i++) {
 		free(conn->fields[i].field);
 		free(conn->fields[i].value);
 	}
@@ -96,7 +96,7 @@ void freeConnection(Connection *conn) {
 	freeStream(conn->stream);
 	free(conn->currLine);
 	free(conn->body);
-	for (i = 0; i < conn->fieldCount; i++) {
+	for (i = 0; i < (long) conn->fieldCount; i++) {
 		free(conn->fields[i].field);
 		free(conn->fields[i].value);
 	}
@@ -215,7 +215,7 @@ static int processPath(Connection *conn, char *path) {
 error:
 	{
 		long i;
-		for (i = 0; i < conn->fieldCount; i++) {
+		for (i = 0; i < (long) conn->fieldCount; i++) {
 			free(conn->pathFields[i].var.data);
 			free(conn->pathFields[i].value.data);
 		}
@@ -274,7 +274,7 @@ static int processField(Connection *conn) {
 	Field *newfields;
 	if (conn->currLineLen == 0) {
 		conn->progress = RECEIVE_BODY;
-		for (i = 0; i < conn->fieldCount; i++) {
+		for (i = 0; i < (long) conn->fieldCount; i++) {
 			if (strcmp(conn->fields[i].field,
 			           "Content-Length") == 0) {
 				conn->bodylen = atol(conn->fields[i].value);
@@ -343,8 +343,9 @@ static int processChar(Connection *conn, char c, Sitefile *site) {
 			conn->currLine = newline;
 		}
 		if (c == '\n') {
-			if (--conn->currLineLen < 0)
+			if (conn->currLineLen == 0)
 				return 1;
+			--conn->currLineLen;
 			if (conn->currLine[conn->currLineLen] != '\r')
 				++conn->currLineLen;
 			conn->currLine[conn->currLineLen] = '\0';
@@ -408,7 +409,7 @@ int updateConnection(Connection *conn, Sitefile *site) {
 			return 1;
 		totalReceived += received;
 		memcpy(&conn->lastdata, &currentTime, sizeof(struct timespec));
-		for (i = 0; i < received; i++) {
+		for (i = 0; (long) i < received; i++) {
 			if (processChar(conn, buff[i], site))
 				return 1;
 		}
